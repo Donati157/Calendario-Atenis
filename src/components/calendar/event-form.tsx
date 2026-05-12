@@ -1,14 +1,16 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import type { EventCategory } from "@/lib/calendar"
+import { AlertTriangle } from "lucide-react"
+import type { EventCategory, EventList } from "@/lib/calendar"
 
 interface EventFormProps {
   initialDate: Date
+  existingList: EventList
   onCancel: () => void
   onSubmit: (data: {
     kind: EventCategory
@@ -27,7 +29,12 @@ function toDatetimeLocal(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export function EventForm({ initialDate, onCancel, onSubmit }: EventFormProps) {
+export function EventForm({
+  initialDate,
+  existingList,
+  onCancel,
+  onSubmit,
+}: EventFormProps) {
   const [kind, setKind] = useState<EventCategory>("study")
   const [title, setTitle] = useState("")
   const [datetime, setDatetime] = useState(toDatetimeLocal(initialDate))
@@ -35,6 +42,15 @@ export function EventForm({ initialDate, onCancel, onSubmit }: EventFormProps) {
   const [subject, setSubject] = useState("")
   const [durationMinutes, setDurationMinutes] = useState(30)
   const [exam, setExam] = useState("ENEM")
+
+  // Conflito de horário — tarefas (duration 0) nunca conflitam.
+  const conflicts = useMemo(() => {
+    if (kind === "assignment") return []
+    const date = new Date(datetime)
+    if (Number.isNaN(date.getTime())) return []
+    const dur = kind === "study" ? durationMinutes : kind === "exam" ? 120 : 30
+    return existingList.findOverlapping(date, dur)
+  }, [kind, datetime, durationMinutes, existingList])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -177,6 +193,44 @@ export function EventForm({ initialDate, onCancel, onSubmit }: EventFormProps) {
                 placeholder="Detalhes, capítulos, links..."
               />
             </div>
+
+            {conflicts.length > 0 && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5">
+                <div className="flex items-start gap-2 text-xs text-amber-300">
+                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium mb-1">
+                      Conflito com {conflicts.length} evento
+                      {conflicts.length === 1 ? "" : "s"} já existente
+                      {conflicts.length === 1 ? "" : "s"}:
+                    </p>
+                    <ul className="space-y-0.5">
+                      {conflicts.slice(0, 3).map((c) => (
+                        <li key={c.getId()} className="opacity-80 truncate">
+                          {c.getIcon()} {c.getTitle()} —{" "}
+                          {c.getDate().toLocaleString("pt-BR", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}{" "}
+                          ({c.getDurationMinutes()} min)
+                        </li>
+                      ))}
+                      {conflicts.length > 3 && (
+                        <li className="opacity-60">
+                          +{conflicts.length - 3} outro
+                          {conflicts.length - 3 === 1 ? "" : "s"}
+                        </li>
+                      )}
+                    </ul>
+                    <p className="mt-1.5 text-[10px] opacity-60">
+                      Você pode salvar mesmo assim — só um aviso.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" onClick={onCancel} className="flex-1">

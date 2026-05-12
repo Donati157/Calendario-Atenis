@@ -14,11 +14,13 @@ export {
   ExamEvent,
   AssignmentEvent,
   SchoolDayEvent,
+  SpecialDayEvent,
   eventFromJSON,
   isStudyEvent,
   isExamEvent,
   isAssignmentEvent,
   isSchoolDayEvent,
+  isSpecialDayEvent,
 } from "./EventTypes"
 
 export { Period } from "./Period"
@@ -27,6 +29,7 @@ export { CalendarGrid, type DayCell } from "./CalendarGrid"
 export { EventScheduler } from "./EventScheduler"
 export {
   JOSE_SCHEDULE,
+  JOSE_SPECIAL_DAYS,
   buildJoseSchedule,
   getJoseScheduleDateKeys,
 } from "./jose-schedule"
@@ -46,6 +49,7 @@ export const AP_CS_CONCEPT_MAP = [
     concepts: [
       "Unit 9 — Inheritance, super() calls, method overriding (polymorphism)",
       "Unit 5 — Composition: SchoolDayEvent HAS-A array de Period",
+      "Open/Closed Principle: SpecialDayEvent adicionado sem mexer no existente",
       "Factory pattern para reidratação",
     ],
   },
@@ -69,23 +73,27 @@ export const AP_CS_CONCEPT_MAP = [
     file: "EventList.ts",
     concepts: [
       "Unit 7 — ArrayList API (add, get, set, remove, size)",
-      "Unit 7 — Selection Sort",
-      "Unit 4 — Iteration & traversal",
+      "Unit 7 — Selection Sort (por data) + Insertion Sort (por título)",
+      "Unit 7 — Binary Search por título (O(log n))",
+      "Unit 4 — Linear search / filter (filterByCategory, filterByDate, linearFilterByTitle)",
+      "Unit 4 — findOverlapping: detecção de conflito de intervalos",
     ],
   },
   {
     file: "CalendarGrid.ts",
     concepts: [
-      "Unit 8 — 2D Arrays (matriz semanas × dias)",
+      "Unit 8 — 2D Arrays (matriz 6 semanas × 7 dias)",
       "Unit 4 — Nested loops para varrer / buscar",
     ],
   },
   {
     file: "EventScheduler.ts",
     concepts: [
-      "Unit 7 — Insertion Sort",
+      "Unit 7 — Insertion Sort (por data)",
       "Unit 10 — Recursão (countEventsRecursive, countByCategoryRecursive)",
       "Unit 5 — Utility class (métodos estáticos)",
+      "Unit 8 — Heatmap matrix: agregação 2D + max",
+      "Map<String, EventList> ≡ HashMap<String, ArrayList<Event>> em Java",
     ],
   },
 ] as const

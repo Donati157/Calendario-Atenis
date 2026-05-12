@@ -86,4 +86,50 @@ export class EventScheduler {
   public static dayKey(year: number, month: number, day: number): string {
     return `${year}-${month}-${day}`
   }
+
+  // ───────── HEATMAP / agregações 2D (Unit 8) ─────────
+
+  // Unit 8: array 2D de contagens — mesmo formato da CalendarGrid (6 semanas
+  // × 7 dias). Cada célula recebe o número de eventos daquele dia (do mês
+  // corrente; spillover marcado como -1 pra UI ignorar).
+  public static heatmapMatrix(
+    list: EventList,
+    grid: {
+      getCells(): {
+        year: number
+        month: number
+        day: number
+        inMonth: boolean
+      }[][]
+    },
+  ): number[][] {
+    const buckets = EventScheduler.groupByDay(list)
+    const cells = grid.getCells()
+    const matrix: number[][] = []
+    for (let r = 0; r < cells.length; r++) {
+      const row: number[] = []
+      for (let c = 0; c < cells[r].length; c++) {
+        const cell = cells[r][c]
+        if (!cell.inMonth) {
+          row.push(-1)
+          continue
+        }
+        const key = EventScheduler.dayKey(cell.year, cell.month, cell.day)
+        row.push(buckets.get(key)?.size() ?? 0)
+      }
+      matrix.push(row)
+    }
+    return matrix
+  }
+
+  // Unit 4 + 8: max numa matriz 2D ignorando -1.
+  public static maxInMatrix(matrix: number[][]): number {
+    let max = 0
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[r].length; c++) {
+        if (matrix[r][c] > max) max = matrix[r][c]
+      }
+    }
+    return max
+  }
 }

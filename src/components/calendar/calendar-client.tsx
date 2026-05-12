@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -14,6 +14,10 @@ import {
   Code2,
   Trash2,
   GraduationCap,
+  Search,
+  Grid3x3,
+  Activity,
+  Clock,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -29,6 +33,7 @@ import {
   isExamEvent,
   isAssignmentEvent,
   isSchoolDayEvent,
+  isSpecialDayEvent,
   buildJoseSchedule,
   getJoseScheduleDateKeys,
   type EventCategory,
@@ -36,8 +41,25 @@ import {
 } from "@/lib/calendar"
 import { ConceptPanel } from "@/components/calendar/concept-panel"
 import { EventForm } from "@/components/calendar/event-form"
+import { CategoryFilter } from "@/components/calendar/category-filter"
+import { CommandPalette } from "@/components/calendar/command-palette"
+import { HeatmapView } from "@/components/calendar/heatmap-view"
+import {
+  TimelineView,
+  totalAcademicMinutes,
+} from "@/components/calendar/timeline-view"
+import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts"
 
-// Standalone: chave única no localStorage (não há userId/login).
+type ViewMode = "month" | "heatmap"
+type DayMode = "list" | "timeline"
+const ALL_CATS: EventCategory[] = [
+  "school_day",
+  "special_day",
+  "study",
+  "exam",
+  "assignment",
+]
+
 const STORAGE_KEY = "calendario.jose.events"
 
 function loadEvents(): EventList {
@@ -65,36 +87,41 @@ function saveEvents(list: EventList): void {
 }
 
 export function CalendarClient() {
-  // Cursor mensal — começa no mês atual.
   const today = useMemo(() => new Date(), [])
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
 
-  // Lista de eventos (mantida como EventList para mostrar a API do CED).
-  // O state guarda um "tick" — cada mutação incrementa para forçar re-render.
   const [list, setList] = useState<EventList>(() => new EventList())
   const [, setTick] = useState(0)
   const bump = () => setTick((t) => t + 1)
 
-  // Dia selecionado para mostrar a lista do dia / criar evento ali.
   const [selected, setSelected] = useState<{
     year: number
     month: number
     day: number
   } | null>(null)
 
-  // Modal de criação.
   const [formOpen, setFormOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>("month")
+  const [dayMode, setDayMode] = useState<DayMode>("list")
+  const [activeCats, setActiveCats] = useState<Set<EventCategory>>(
+    () => new Set(ALL_CATS),
+  )
+  const toggleCat = (cat: EventCategory) => {
+    setActiveCats((prev) => {
+      const next = new Set(prev)
+      if (next.has(cat)) next.delete(cat)
+      else next.add(cat)
+      return next
+    })
+  }
 
-  // Carrega do localStorage uma vez no mount.
   useEffect(() => {
     const loaded = loadEvents()
     setList(loaded)
   }, [])
 
-  // Persiste sempre que mudar o tamanho da lista ou um item.
-  // Note: a EventList é mutada in-place; bump força a re-renderização e
-  // dispara este efeito.
   useEffect(() => {
     saveEvents(list)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,41 +129,52 @@ export function CalendarClient() {
 
   const grid = useMemo(() => new CalendarGrid(year, month), [year, month])
 
-  // Agrupamento por dia para acesso O(1) na renderização.
-  const byDay = useMemo(() => {
-    // bump no state força recálculo via list reference; useMemo quebra
-    // só pela dep `list`, mas como nós fazemos saveEvents no mesmo effect
-    // e mantemos a referência, o `tick` no array de deps abaixo garante.
-    return EventScheduler.groupByDay(list)
+  // Lista FILTRADA pelos chips.
+  const filteredList = useMemo(() => {
+    if (activeCats.size === ALL_CATS.length) return list
+    const out = new EventList()
+    for (const ev of list.toArray()) {
+      if (activeCats.has(ev.getCategory())) out.add(ev)
+    }
+    return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, list.size()])
+  }, [list, list.size(), activeCats])
+
+  const byDay = useMemo(() => {
+    return EventScheduler.groupByDay(filteredList)
+  }, [filteredList])
 
   const counts = useMemo(() => list.countByCategory(), [list, list.size()])
-  const sorted = useMemo(() => list.sortedByDate(), [list, list.size()])
+  const sorted = useMemo(() => filteredList.sortedByDate(), [filteredList])
   const next = useMemo(() => {
     const sortedList = new EventList(sorted)
     return EventScheduler.nextUpcoming(sortedList)
   }, [sorted])
+  const academicMinutes = useMemo(
+    () => totalAcademicMinutes(list),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [list, list.size()],
+  )
 
-  const goPrevMonth = () => {
+  const goPrevMonth = useCallback(() => {
     if (month === 0) {
       setYear((y) => y - 1)
       setMonth(11)
     } else {
       setMonth((m) => m - 1)
     }
-  }
+  }, [month])
 
-  const goNextMonth = () => {
+  const goNextMonth = useCallback(() => {
     if (month === 11) {
       setYear((y) => y + 1)
       setMonth(0)
     } else {
       setMonth((m) => m + 1)
     }
-  }
+  }, [month])
 
-  const goToday = () => {
+  const goToday = useCallback(() => {
     const now = new Date()
     setYear(now.getFullYear())
     setMonth(now.getMonth())
@@ -145,7 +183,7 @@ export function CalendarClient() {
       month: now.getMonth(),
       day: now.getDate(),
     })
-  }
+  }, [])
 
   const handleAddEvent = (data: {
     kind: EventCategory
@@ -190,16 +228,14 @@ export function CalendarClient() {
     bump()
   }
 
-  // Carrega a agenda da persona José.
-  // Idempotente: remove qualquer SchoolDayEvent existente nas datas
-  // cobertas, depois adiciona os novos. Re-clicar não duplica.
+  // Idempotente: remove school_day + special_day nas datas cobertas e reinsere.
   const handleLoadJoseSchedule = () => {
     const targetDates = getJoseScheduleDateKeys()
-    // Unit 4: traverse reverso para remover seguro durante iteração.
     const arr = list.toArray()
     for (let i = arr.length - 1; i >= 0; i--) {
       const ev = arr[i]
-      if (ev.getCategory() !== "school_day") continue
+      const cat = ev.getCategory()
+      if (cat !== "school_day" && cat !== "special_day") continue
       const d = ev.getDate()
       const key = EventScheduler.dayKey(
         d.getFullYear(),
@@ -209,9 +245,8 @@ export function CalendarClient() {
       if (targetDates.has(key)) list.removeById(ev.getId())
     }
     for (const ev of buildJoseSchedule()) list.add(ev)
-    // Pula o cursor para o mês da agenda (maio/2026).
     setYear(2026)
-    setMonth(4) // maio = índice 4
+    setMonth(4)
     bump()
   }
 
@@ -234,9 +269,31 @@ export function CalendarClient() {
     day: today.getDate(),
   }
 
+  const openNewEvent = useCallback(() => {
+    const sel =
+      selected ?? {
+        year: todayCell.year,
+        month: todayCell.month,
+        day: todayCell.day,
+      }
+    setSelected(sel)
+    setFormOpen(true)
+  }, [selected, todayCell.year, todayCell.month, todayCell.day])
+
+  useKeyboardShortcuts({
+    prevMonth: goPrevMonth,
+    nextMonth: goNextMonth,
+    today: goToday,
+    newEvent: openNewEvent,
+    search: () => setPaletteOpen(true),
+    escape: () => {
+      if (paletteOpen) setPaletteOpen(false)
+      else if (formOpen) setFormOpen(false)
+    },
+  })
+
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-      {/* Coluna principal: navegação + grade + dia selecionado */}
       <div className="space-y-5">
         <Card>
           <CardHeader className="pb-3">
@@ -268,149 +325,230 @@ export function CalendarClient() {
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
+                  variant="ghost"
+                  onClick={() => setPaletteOpen(true)}
+                  title="Buscar evento (⌘K)"
+                  className="hidden sm:inline-flex"
+                >
+                  <Search className="h-4 w-4" />
+                  <span className="hidden md:inline">Buscar</span>
+                  <kbd className="hidden md:inline border border-border rounded px-1 py-0 text-[9px] uppercase ml-1">
+                    ⌘K
+                  </kbd>
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setPaletteOpen(true)}
+                  className="sm:hidden"
+                  aria-label="Buscar"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "heatmap" ? "default" : "outline"}
+                  onClick={() =>
+                    setViewMode((v) => (v === "month" ? "heatmap" : "month"))
+                  }
+                  title="Alternar entre grade e heatmap"
+                >
+                  {viewMode === "month" ? (
+                    <>
+                      <Activity className="h-4 w-4" />
+                      <span className="hidden sm:inline">Heatmap</span>
+                    </>
+                  ) : (
+                    <>
+                      <Grid3x3 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Grade</span>
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
                   variant="outline"
                   onClick={handleLoadJoseSchedule}
-                  title="Carrega a agenda da persona José (15 dias letivos em maio/2026)"
+                  title="Carrega a agenda da persona José (maio/2026)"
                 >
                   <GraduationCap className="h-4 w-4" />
                   <span className="hidden sm:inline">Agenda do José</span>
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    const sel =
-                      selected ??
-                      {
-                        year: todayCell.year,
-                        month: todayCell.month,
-                        day: todayCell.day,
-                      }
-                    setSelected(sel)
-                    setFormOpen(true)
-                  }}
-                >
+                <Button size="sm" onClick={openNewEvent}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Novo evento</span>
                 </Button>
               </div>
             </div>
+
+            <div className="mt-3 pt-3 border-t border-border/40">
+              <CategoryFilter
+                active={activeCats}
+                onToggle={toggleCat}
+                counts={counts}
+              />
+            </div>
           </CardHeader>
           <CardContent>
-            {/* Cabeçalho da semana */}
-            <div className="grid grid-cols-7 mb-2">
-              {CalendarGrid.weekdayHeaders().map((h) => (
-                <div
-                  key={h}
-                  className="text-[11px] uppercase tracking-wider text-muted-foreground text-center py-1"
-                >
-                  {h}
-                </div>
-              ))}
-            </div>
-
-            {/* Grade 6×7 — Unit 8 (2D Arrays) renderizada com nested map */}
-            <div className="grid grid-cols-7 gap-1">
-              {grid.getCells().flatMap((row, r) =>
-                row.map((cell, c) => {
-                  const key = EventScheduler.dayKey(
-                    cell.year,
-                    cell.month,
-                    cell.day,
-                  )
-                  const dayEvents = byDay.get(key)
-                  const evCount = dayEvents?.size() ?? 0
-                  const isToday =
-                    cell.year === todayCell.year &&
-                    cell.month === todayCell.month &&
-                    cell.day === todayCell.day
-                  const isSel = isSameDate(cell, selected)
-                  return (
-                    <button
-                      key={`${r}-${c}`}
-                      onClick={() =>
-                        setSelected({
-                          year: cell.year,
-                          month: cell.month,
-                          day: cell.day,
-                        })
-                      }
-                      className={cn(
-                        "h-20 sm:h-24 rounded-lg border text-left p-1.5 flex flex-col gap-1 transition-colors",
-                        cell.inMonth
-                          ? "bg-card hover:bg-secondary/50 border-border/60"
-                          : "bg-secondary/20 text-muted-foreground/60 border-border/30",
-                        isToday &&
-                          "ring-1 ring-accent border-accent/60",
-                        isSel && "bg-accent/10 border-accent",
-                      )}
+            {viewMode === "heatmap" ? (
+              <HeatmapView list={filteredList} year={year} month={month} />
+            ) : (
+              <>
+                <div className="grid grid-cols-7 mb-2">
+                  {CalendarGrid.weekdayHeaders().map((h) => (
+                    <div
+                      key={h}
+                      className="text-[11px] uppercase tracking-wider text-muted-foreground text-center py-1"
                     >
-                      <span
-                        className={cn(
-                          "text-xs font-medium",
-                          isToday && "text-accent",
-                        )}
-                      >
-                        {cell.day}
-                      </span>
-                      {dayEvents && evCount > 0 && (
-                        <div className="flex flex-col gap-0.5 overflow-hidden">
-                          {dayEvents
-                            .toArray()
-                            .slice(0, 2)
-                            .map((ev) => (
-                              <span
-                                key={ev.getId()}
-                                className={cn(
-                                  "text-[10px] px-1 py-0.5 rounded border truncate",
-                                  ev.getColor(),
-                                )}
-                                title={ev.toString()}
-                              >
-                                <span className="mr-1">{ev.getIcon()}</span>
-                                {ev.getTitle()}
-                              </span>
-                            ))}
-                          {evCount > 2 && (
-                            <span className="text-[10px] text-muted-foreground">
-                              +{evCount - 2}
-                            </span>
+                      {h}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-1">
+                  {grid.getCells().flatMap((row, r) =>
+                    row.map((cell, c) => {
+                      const key = EventScheduler.dayKey(
+                        cell.year,
+                        cell.month,
+                        cell.day,
+                      )
+                      const dayEvents = byDay.get(key)
+                      const evCount = dayEvents?.size() ?? 0
+                      const isToday =
+                        cell.year === todayCell.year &&
+                        cell.month === todayCell.month &&
+                        cell.day === todayCell.day
+                      const isSel = isSameDate(cell, selected)
+                      return (
+                        <button
+                          key={`${r}-${c}`}
+                          onClick={() =>
+                            setSelected({
+                              year: cell.year,
+                              month: cell.month,
+                              day: cell.day,
+                            })
+                          }
+                          className={cn(
+                            "h-20 sm:h-24 rounded-lg border text-left p-1.5 flex flex-col gap-1 transition-all",
+                            cell.inMonth
+                              ? "bg-card hover:bg-secondary/50 border-border/60"
+                              : "bg-secondary/20 text-muted-foreground/60 border-border/30",
+                            isToday &&
+                              "ring-1 ring-accent border-accent/60 shadow-[0_0_24px_-4px_hsl(var(--accent)/0.5)]",
+                            isSel && "bg-accent/10 border-accent",
                           )}
-                        </div>
-                      )}
-                    </button>
-                  )
-                }),
-              )}
-            </div>
+                        >
+                          <span
+                            className={cn(
+                              "text-xs font-medium",
+                              isToday && "text-accent",
+                            )}
+                          >
+                            {cell.day}
+                          </span>
+                          {dayEvents && evCount > 0 && (
+                            <div className="flex flex-col gap-0.5 overflow-hidden">
+                              {dayEvents
+                                .toArray()
+                                .slice(0, 2)
+                                .map((ev) => (
+                                  <span
+                                    key={ev.getId()}
+                                    className={cn(
+                                      "text-[10px] px-1 py-0.5 rounded border truncate",
+                                      ev.getColor(),
+                                    )}
+                                    title={ev.toString()}
+                                  >
+                                    <span className="mr-1">{ev.getIcon()}</span>
+                                    {ev.getTitle()}
+                                  </span>
+                                ))}
+                              {evCount > 2 && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  +{evCount - 2}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </button>
+                      )
+                    }),
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
-        {/* Painel do dia selecionado */}
         {selected && (
           <Card>
-            <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
-              <div>
-                <CardTitle className="text-base">
-                  {selected.day} de {CalendarGrid.monthName(selected.month)},{" "}
-                  {selected.year}
-                </CardTitle>
-                <CardDescription>
-                  {selectedEvents && selectedEvents.size() > 0
-                    ? `${selectedEvents.size()} evento${selectedEvents.size() > 1 ? "s" : ""}`
-                    : "Nenhum evento neste dia"}
-                </CardDescription>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <CardTitle className="text-base">
+                    {selected.day} de {CalendarGrid.monthName(selected.month)},{" "}
+                    {selected.year}
+                  </CardTitle>
+                  <CardDescription>
+                    {selectedEvents && selectedEvents.size() > 0
+                      ? `${selectedEvents.size()} evento${selectedEvents.size() > 1 ? "s" : ""}`
+                      : "Nenhum evento neste dia"}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex border border-border rounded-md overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setDayMode("list")}
+                      className={cn(
+                        "px-2.5 py-1 text-xs flex items-center gap-1.5",
+                        dayMode === "list"
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:bg-secondary/50",
+                      )}
+                      title="Lista"
+                    >
+                      <Grid3x3 className="h-3.5 w-3.5" />
+                      Lista
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDayMode("timeline")}
+                      className={cn(
+                        "px-2.5 py-1 text-xs flex items-center gap-1.5 border-l border-border",
+                        dayMode === "timeline"
+                          ? "bg-secondary text-foreground"
+                          : "text-muted-foreground hover:bg-secondary/50",
+                      )}
+                      title="Timeline"
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      Timeline
+                    </button>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setFormOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Adicionar
+                  </Button>
+                </div>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setFormOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                Adicionar
-              </Button>
             </CardHeader>
             <CardContent className="space-y-2">
-              {selectedEvents && selectedEvents.size() > 0 ? (
+              {dayMode === "timeline" ? (
+                <TimelineView
+                  list={filteredList}
+                  year={selected.year}
+                  month={selected.month}
+                  day={selected.day}
+                />
+              ) : selectedEvents && selectedEvents.size() > 0 ? (
                 selectedEvents.toArray().map((ev) => (
                   <EventCard
                     key={ev.getId()}
@@ -428,8 +566,47 @@ export function CalendarClient() {
         )}
       </div>
 
-      {/* Coluna lateral: estatísticas + conceitos AP CS */}
       <div className="space-y-5">
+        {academicMinutes > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Insights</CardTitle>
+              <CardDescription>
+                Agregação automática (Unit 4 — traverse).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm space-y-1.5">
+              <p>
+                <span className="font-semibold text-blue-400 tabular-nums">
+                  {Math.floor(academicMinutes / 60)}h{" "}
+                  {String(academicMinutes % 60).padStart(2, "0")}
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  de aulas acadêmicas no total
+                </span>
+              </p>
+              {next && (
+                <p className="text-xs text-muted-foreground">
+                  Próximo:{" "}
+                  <span className="text-foreground">{next.getTitle()}</span> em{" "}
+                  {next
+                    .getDate()
+                    .toLocaleDateString("pt-BR", {
+                      day: "2-digit",
+                      month: "short",
+                    })}
+                </p>
+              )}
+              {filteredList.size() < list.size() && (
+                <p className="text-xs text-amber-400">
+                  Filtro ativo: {filteredList.size()} de {list.size()} eventos
+                  visíveis
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Resumo</CardTitle>
@@ -462,6 +639,12 @@ export function CalendarClient() {
               value={counts.school_day}
               color="text-blue-600 dark:text-blue-400"
             />
+            <Stat
+              label="Eventos especiais"
+              icon="🎉"
+              value={counts.special_day}
+              color="text-violet-600 dark:text-violet-400"
+            />
             {next && (
               <div className="mt-3 pt-3 border-t border-border/50">
                 <p className="text-xs text-muted-foreground mb-1">
@@ -474,7 +657,8 @@ export function CalendarClient() {
                   )}
                 >
                   <span className="mr-1">{next.getIcon()}</span>
-                  {next.getTitle()} — {next.getDate().toLocaleDateString("pt-BR")}
+                  {next.getTitle()} —{" "}
+                  {next.getDate().toLocaleDateString("pt-BR")}
                 </div>
               </div>
             )}
@@ -491,8 +675,27 @@ export function CalendarClient() {
               ? new Date(selected.year, selected.month, selected.day, 9, 0)
               : new Date()
           }
+          existingList={list}
           onCancel={() => setFormOpen(false)}
           onSubmit={handleAddEvent}
+        />
+      )}
+
+      {paletteOpen && (
+        <CommandPalette
+          list={list}
+          onPick={(ev) => {
+            const d = ev.getDate()
+            setYear(d.getFullYear())
+            setMonth(d.getMonth())
+            setSelected({
+              year: d.getFullYear(),
+              month: d.getMonth(),
+              day: d.getDate(),
+            })
+            setPaletteOpen(false)
+          }}
+          onClose={() => setPaletteOpen(false)}
         />
       )}
     </div>
@@ -532,9 +735,6 @@ function EventCard({
   event: CalendarEvent
   onDelete: () => void
 }) {
-  // Polimorfismo (Unit 9): event.getCategory() despacha para o método
-  // certo da subclass; idem getColor/getIcon. Aqui usamos type guards
-  // para extrair detalhes específicos da subclasse.
   let detail: string | null = null
   if (isStudyEvent(event)) {
     detail = `${event.getSubject() || "Estudo"} · ${event.getDurationMinutes()} min`
@@ -544,6 +744,8 @@ function EventCard({
     detail = `Matéria: ${event.getSubject() || "—"}`
   } else if (isSchoolDayEvent(event)) {
     detail = `Rotação Concept SP · ${event.countAcademicPeriods()} aulas acadêmicas`
+  } else if (isSpecialDayEvent(event)) {
+    detail = `Evento institucional · ${event.getKind()}`
   }
 
   return (
@@ -558,9 +760,7 @@ function EventCard({
           <span>{event.getIcon()}</span>
           <span className="truncate">{event.getTitle()}</span>
         </div>
-        {detail && (
-          <p className="text-xs opacity-80 mt-0.5">{detail}</p>
-        )}
+        {detail && <p className="text-xs opacity-80 mt-0.5">{detail}</p>}
         {isSchoolDayEvent(event) && (
           <ul className="mt-2 space-y-0.5 text-xs">
             {event.getPeriods().map((p) => (

@@ -12,7 +12,8 @@
  */
 
 import { Period } from "./Period"
-import { SchoolDayEvent } from "./EventTypes"
+import { CalendarEvent } from "./CalendarEvent"
+import { SchoolDayEvent, SpecialDayEvent } from "./EventTypes"
 
 // Tradução de dias-da-semana → minutos. Aritmética inteira: H * 60 + M.
 const T = (h: number, m: number): number => h * 60 + m
@@ -127,8 +128,32 @@ export const JOSE_SCHEDULE: ReadonlyArray<DayDefinition> = [
 
 // Builder: data → SchoolDayEvent[].
 // Cada dia vira UM SchoolDayEvent contendo N Period.
-export function buildJoseSchedule(): SchoolDayEvent[] {
-  const events: SchoolDayEvent[] = []
+// Dias especiais (sem rotação, sem grade de aulas): Inter House, FOL, etc.
+type SpecialDayDefinition = {
+  date: string // YYYY-MM-DD
+  title: string // Inter House, FOL, ...
+  description?: string
+}
+
+export const JOSE_SPECIAL_DAYS: ReadonlyArray<SpecialDayDefinition> = [
+  {
+    date: "2026-05-08",
+    title: "Inter House",
+    description: "Competição entre houses da Concept SP.",
+  },
+  {
+    date: "2026-05-30",
+    title: "FOL",
+    description: "Festival/evento institucional (FOL).",
+  },
+]
+
+// Builder único: devolve a lista heterogênea de eventos da agenda do José.
+// Inclui SchoolDayEvent (15 dias letivos) + SpecialDayEvent (Inter House, FOL).
+export function buildJoseSchedule(): CalendarEvent[] {
+  const events: CalendarEvent[] = []
+
+  // Dias letivos regulares.
   for (const day of JOSE_SCHEDULE) {
     const slots = day.periods.length === 7 ? SLOTS_7 : SLOTS_6
     if (day.periods.length !== slots.length) {
@@ -160,13 +185,35 @@ export function buildJoseSchedule(): SchoolDayEvent[] {
       new SchoolDayEvent(`Dia ${day.cycle}`, date, day.cycle, periods, description),
     )
   }
+
+  // Dias especiais (Inter House / FOL).
+  for (const sp of JOSE_SPECIAL_DAYS) {
+    const [yStr, mStr, dStr] = sp.date.split("-")
+    const y = Number(yStr)
+    const m = Number(mStr) - 1
+    const d = Number(dStr)
+    // Marca às 07:30 — começo padrão de evento escolar do dia.
+    const date = new Date(y, m, d, 7, 30)
+    events.push(
+      new SpecialDayEvent(sp.title, date, sp.title, sp.description ?? ""),
+    )
+  }
+
   return events
 }
 
 // Conjunto das datas (em formato YYYY-M-D zero-indexado) que a agenda
 // cobre. Usado para deduplicação ao recarregar.
+// Inclui dias letivos E dias especiais.
 export function getJoseScheduleDateKeys(): Set<string> {
   const out = new Set<string>()
+  for (const sp of JOSE_SPECIAL_DAYS) {
+    const [yStr, mStr, dStr] = sp.date.split("-")
+    const y = Number(yStr)
+    const m = Number(mStr) - 1
+    const d = Number(dStr)
+    out.add(`${y}-${m}-${d}`)
+  }
   for (const day of JOSE_SCHEDULE) {
     const [yStr, mStr, dStr] = day.date.split("-")
     const y = Number(yStr)

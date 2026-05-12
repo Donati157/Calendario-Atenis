@@ -44,7 +44,8 @@ export class StudyEvent extends CalendarEvent {
   public getSubject(): string {
     return this.subject
   }
-  public getDurationMinutes(): number {
+  // Unit 9: override do default da superclasse (30) com valor real do form.
+  public override getDurationMinutes(): number {
     return this.durationMinutes
   }
 
@@ -100,6 +101,10 @@ export class ExamEvent extends CalendarEvent {
   public override getIcon(): string {
     return "📝"
   }
+  // Unit 9: prova padrão dura 2h. Override do default de 30 min.
+  public override getDurationMinutes(): number {
+    return 120
+  }
 
   public override toJSON(): SerializedEvent {
     return { ...super.toJSON(), exam: this.exam }
@@ -135,6 +140,10 @@ export class AssignmentEvent extends CalendarEvent {
   }
   public override getIcon(): string {
     return "📌"
+  }
+  // Unit 9: tarefa é um deadline pontual, sem janela de duração.
+  public override getDurationMinutes(): number {
+    return 0
   }
 
   public override toJSON(): SerializedEvent {
@@ -208,6 +217,14 @@ export class SchoolDayEvent extends CalendarEvent {
   public override getIcon(): string {
     return "🏫"
   }
+  // Unit 9 + 4: duração total do dia letivo, do início do primeiro
+  // bloco até o fim do último.
+  public override getDurationMinutes(): number {
+    if (this.periods.length === 0) return super.getDurationMinutes()
+    const first = this.periods[0]
+    const last = this.periods[this.periods.length - 1]
+    return last.getEndMinutes() - first.getStartMinutes()
+  }
 
   public override toJSON(): SerializedEvent {
     return {
@@ -215,6 +232,52 @@ export class SchoolDayEvent extends CalendarEvent {
       dayCycle: this.dayCycle,
       periods: this.periods.map((p) => p.toJSON()),
     }
+  }
+}
+
+// ──────────────────────────────────────────────────────────
+// Dia especial (sem rotação, sem períodos) — eventos de escola
+// que não são aula regular: Inter House, FOL, etc.
+// ──────────────────────────────────────────────────────────
+// Conceitos AP CS A:
+//  - Unit 9: herança simples (extends + super + overrides).
+//  - Open/Closed Principle: adicionado SEM modificar nenhuma
+//    classe existente — só adicionando uma nova subclass.
+export class SpecialDayEvent extends CalendarEvent {
+  // Tipo do evento (free-form string: "Inter House", "FOL", "Field Trip"...).
+  private readonly kind_: string
+
+  public constructor(
+    title: string,
+    date: Date,
+    kind: string,
+    description = "",
+    id?: string,
+  ) {
+    super(title, date, description, id)
+    this.kind_ = kind
+  }
+
+  public getKind(): string {
+    return this.kind_
+  }
+
+  public override getCategory(): EventCategory {
+    return "special_day"
+  }
+  public override getColor(): string {
+    return "bg-violet-500/15 text-violet-700 border-violet-500/30 dark:text-violet-300"
+  }
+  public override getIcon(): string {
+    return "🎉"
+  }
+  // Dia inteiro — 8h aproximadas (ex.: 7:30 às 15:30).
+  public override getDurationMinutes(): number {
+    return 8 * 60
+  }
+
+  public override toJSON(): SerializedEvent {
+    return { ...super.toJSON(), specialKind: this.kind_ }
   }
 }
 
@@ -266,6 +329,14 @@ export function eventFromJSON(raw: SerializedEvent): CalendarEvent {
         raw.id,
       )
     }
+    case "special_day":
+      return new SpecialDayEvent(
+        raw.title,
+        date,
+        typeof raw.specialKind === "string" ? raw.specialKind : raw.title,
+        raw.description,
+        raw.id,
+      )
     default: {
       // Exhaustiveness check: TS reclama em compile time se um novo kind
       // for adicionado sem ser tratado aqui.
@@ -287,4 +358,7 @@ export function isAssignmentEvent(e: CalendarEvent): e is AssignmentEvent {
 }
 export function isSchoolDayEvent(e: CalendarEvent): e is SchoolDayEvent {
   return e.getCategory() === "school_day"
+}
+export function isSpecialDayEvent(e: CalendarEvent): e is SpecialDayEvent {
+  return e.getCategory() === "special_day"
 }

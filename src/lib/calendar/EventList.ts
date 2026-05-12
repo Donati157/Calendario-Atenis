@@ -100,6 +100,7 @@ export class EventList {
       exam: 0,
       assignment: 0,
       school_day: 0,
+      special_day: 0,
     }
     for (const ev of this.items) {
       counts[ev.getCategory()]++
@@ -139,5 +140,90 @@ export class EventList {
     const copy = new EventList(this.items)
     copy.selectionSortByDate()
     return copy.toArray()
+  }
+
+  // ───────── filtros e busca ─────────
+
+  // Unit 4: filtra por categoria.
+  public filterByCategory(category: EventCategory): EventList {
+    const out = new EventList()
+    for (const ev of this.items) {
+      if (ev.getCategory() === category) out.add(ev)
+    }
+    return out
+  }
+
+  // Unit 4: linear search por título (case-insensitive, substring).
+  public linearFilterByTitle(query: string): CalendarEvent[] {
+    const q = query.trim().toLowerCase()
+    if (q.length === 0) return []
+    const out: CalendarEvent[] = []
+    for (const ev of this.items) {
+      if (ev.getTitle().toLowerCase().includes(q)) out.push(ev)
+    }
+    return out
+  }
+
+  // ───────── ordenação por título (Unit 7) ─────────
+
+  // Unit 7: Insertion Sort por título (in place). Pré-requisito do BS.
+  public insertionSortByTitle(): void {
+    const n = this.items.length
+    for (let i = 1; i < n; i++) {
+      const key = this.items[i]
+      let j = i - 1
+      while (j >= 0 && this.items[j].compareTitle(key) > 0) {
+        this.items[j + 1] = this.items[j]
+        j--
+      }
+      this.items[j + 1] = key
+    }
+  }
+
+  public sortedByTitle(): CalendarEvent[] {
+    const copy = new EventList(this.items)
+    copy.insertionSortByTitle()
+    return copy.toArray()
+  }
+
+  // Unit 7: Binary Search por título (exact match, case-insensitive).
+  // Pré-condição: lista ORDENADA por título. Retorna índice ou -1.
+  public binarySearchByTitle(title: string): number {
+    const target = title.trim().toLowerCase()
+    let lo = 0
+    let hi = this.items.length - 1
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2)
+      const cmp = this.items[mid]
+        .getTitle()
+        .toLowerCase()
+        .localeCompare(target, "pt-BR")
+      if (cmp === 0) return mid
+      if (cmp < 0) lo = mid + 1
+      else hi = mid - 1
+    }
+    return -1
+  }
+
+  // ───────── detector de conflito de horário (Unit 4) ─────────
+
+  // Dois intervalos [aStart, aEnd) e [bStart, bEnd) se sobrepõem se
+  // e somente se aStart < bEnd && bStart < aEnd.
+  public findOverlapping(
+    start: Date,
+    durationMinutes: number,
+    excludeId?: string,
+  ): CalendarEvent[] {
+    const out: CalendarEvent[] = []
+    const aStart = start.getTime()
+    const aEnd = aStart + Math.max(0, durationMinutes) * 60_000
+    for (const ev of this.items) {
+      if (excludeId && ev.getId() === excludeId) continue
+      if (ev.getDurationMinutes() <= 0) continue
+      const bStart = ev.getDate().getTime()
+      const bEnd = bStart + ev.getDurationMinutes() * 60_000
+      if (aStart < bEnd && bStart < aEnd) out.push(ev)
+    }
+    return out
   }
 }

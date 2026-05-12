@@ -80,6 +80,21 @@ export abstract class CalendarEvent {
   public abstract getColor(): string
   public abstract getIcon(): string
 
+  // Unit 9: método com implementação default na superclasse, opcionalmente
+  // sobrescrito por subclasses. Em Java equivale a um método regular não
+  // abstract. Usado pelo detector de conflito em EventList.findOverlapping.
+  public getDurationMinutes(): number {
+    return 30
+  }
+
+  // Unit 1/2: comparação textual normalizada para Insertion Sort por título
+  // (Unit 7) e Binary Search por título.
+  public compareTitle(other: CalendarEvent): number {
+    return this.title
+      .toLowerCase()
+      .localeCompare(other.title.toLowerCase(), "pt-BR")
+  }
+
   // Unit 9: análogo de toString() do Java. Subclasses podem sobrescrever
   // para mostrar mais detalhes.
   public toString(): string {
@@ -122,7 +137,12 @@ export abstract class CalendarEvent {
   }
 }
 
-export type EventCategory = "study" | "exam" | "assignment" | "school_day"
+export type EventCategory =
+  | "study"
+  | "exam"
+  | "assignment"
+  | "school_day"
+  | "special_day"
 
 export type SerializedEvent = {
   id: string
