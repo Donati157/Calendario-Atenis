@@ -35,10 +35,9 @@ export function App() {
               Calendário
             </h1>
             <p className="text-sm sm:text-base text-muted-foreground mt-1 text-pretty">
-              Organize estudos, provas e tarefas. Clique em{" "}
-              <strong className="text-foreground">Agenda do José</strong> para
-              popular maio/2026 com a rotação Concept SP. A engenharia por
-              trás demonstra conceitos de AP Computer Science A.
+              Organize estudos, provas e tarefas. A rotação Concept SP de
+              6 dias aparece automaticamente — pula fins de semana e
+              pausa em eventos como Inter House e FOL.
             </p>
           </div>
           <CalendarClient />

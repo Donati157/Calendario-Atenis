@@ -13,7 +13,6 @@ import {
   Plus,
   Code2,
   Trash2,
-  GraduationCap,
   Search,
   Grid3x3,
   Activity,
@@ -34,12 +33,11 @@ import {
   isAssignmentEvent,
   isSchoolDayEvent,
   isSpecialDayEvent,
-  buildJoseSchedule,
-  getJoseScheduleDateKeys,
+  RotationEngine,
+  ROTATION_ID_PREFIX,
   type EventCategory,
   type SerializedEvent,
 } from "@/lib/calendar"
-import { ConceptPanel } from "@/components/calendar/concept-panel"
 import { EventForm } from "@/components/calendar/event-form"
 import { CategoryFilter } from "@/components/calendar/category-filter"
 import { CommandPalette } from "@/components/calendar/command-palette"
@@ -62,25 +60,42 @@ const ALL_CATS: EventCategory[] = [
 
 const STORAGE_KEY = "calendario.jose.events"
 
-function loadEvents(): EventList {
+// Eventos da ROTAÇÃO são determinísticos — geramos sob demanda.
+// localStorage guarda só os eventos criados pelo usuário (study/exam/
+// assignment) — esses sim persistem.
+function isRotationEvent(ev: CalendarEvent): boolean {
+  return ev.getId().startsWith(ROTATION_ID_PREFIX)
+}
+
+function loadUserEvents(): EventList {
   if (typeof window === "undefined") return new EventList()
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return new EventList()
     const arr = JSON.parse(raw) as SerializedEvent[]
     const list = new EventList()
-    for (const r of arr) list.add(eventFromJSON(r))
+    for (const r of arr) {
+      // Ignora qualquer evento de rotação que tenha sobrado de versões
+      // anteriores no localStorage — esses são regenerados.
+      if (typeof r.id === "string" && r.id.startsWith(ROTATION_ID_PREFIX)) {
+        continue
+      }
+      list.add(eventFromJSON(r))
+    }
     return list
   } catch {
     return new EventList()
   }
 }
 
-function saveEvents(list: EventList): void {
+function saveUserEvents(list: EventList): void {
   if (typeof window === "undefined") return
   try {
-    const arr = list.toArray().map((ev) => ev.toJSON())
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(arr))
+    const userOnly = list
+      .toArray()
+      .filter((ev) => !isRotationEvent(ev))
+      .map((ev) => ev.toJSON())
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(userOnly))
   } catch {
     // ignora — quota cheia / modo privado
   }
@@ -91,9 +106,16 @@ export function CalendarClient() {
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
 
-  const [list, setList] = useState<EventList>(() => new EventList())
-  const [, setTick] = useState(0)
-  const bump = () => setTick((t) => t + 1)
+  // userList = eventos criados pelo usuário (persistidos em localStorage).
+  // list (derivado abaixo) = userList + rotação do mês visível.
+  const [userList, setUserList] = useState<EventList>(() => new EventList())
+  const [tick, setTick] = useState(0)
+  // bump() é chamado após TODA mutação da userList. Persiste no
+  // localStorage e força re-render via tick.
+  const bump = () => {
+    saveUserEvents(userList)
+    setTick((t) => t + 1)
+  }
 
   const [selected, setSelected] = useState<{
     year: number
@@ -117,17 +139,29 @@ export function CalendarClient() {
     })
   }
 
+  // Carrega só os eventos do usuário uma vez no mount.
   useEffect(() => {
-    const loaded = loadEvents()
-    setList(loaded)
+    setUserList(loadUserEvents())
   }, [])
 
-  useEffect(() => {
-    saveEvents(list)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list])
-
   const grid = useMemo(() => new CalendarGrid(year, month), [year, month])
+
+  // Rotação do mês visível — gerada na hora pela RotationEngine.
+  // Re-roda só quando year/month mudam (custo desprezível: ~30 dias).
+  const rotationEvents = useMemo(
+    () => RotationEngine.generateForMonth(year, month),
+    [year, month],
+  )
+
+  // LISTA MESCLADA = userList + rotação. É o que TODA a UI usa.
+  const list = useMemo(() => {
+    const merged = new EventList()
+    for (const ev of userList.toArray()) merged.add(ev)
+    for (const ev of rotationEvents) merged.add(ev)
+    return merged
+    // tick força recomputo após mutar userList in-place via bump()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userList, rotationEvents, tick])
 
   // Lista FILTRADA pelos chips.
   const filteredList = useMemo(() => {
@@ -137,14 +171,13 @@ export function CalendarClient() {
       if (activeCats.has(ev.getCategory())) out.add(ev)
     }
     return out
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, list.size(), activeCats])
+  }, [list, activeCats])
 
   const byDay = useMemo(() => {
     return EventScheduler.groupByDay(filteredList)
   }, [filteredList])
 
-  const counts = useMemo(() => list.countByCategory(), [list, list.size()])
+  const counts = useMemo(() => list.countByCategory(), [list])
   const sorted = useMemo(() => filteredList.sortedByDate(), [filteredList])
   const next = useMemo(() => {
     const sortedList = new EventList(sorted)
@@ -152,8 +185,7 @@ export function CalendarClient() {
   }, [sorted])
   const academicMinutes = useMemo(
     () => totalAcademicMinutes(list),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [list, list.size()],
+    [list],
   )
 
   const goPrevMonth = useCallback(() => {
@@ -218,35 +250,17 @@ export function CalendarClient() {
         data.description,
       )
     }
-    list.add(event)
+    userList.add(event)
     bump()
     setFormOpen(false)
   }
 
+  // Só permite deletar eventos criados pelo usuário. Os eventos da
+  // rotação (school_day / special_day gerados automaticamente) não
+  // podem ser apagados — eles são regenerados a cada renderização.
   const handleDelete = (id: string) => {
-    list.removeById(id)
-    bump()
-  }
-
-  // Idempotente: remove school_day + special_day nas datas cobertas e reinsere.
-  const handleLoadJoseSchedule = () => {
-    const targetDates = getJoseScheduleDateKeys()
-    const arr = list.toArray()
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const ev = arr[i]
-      const cat = ev.getCategory()
-      if (cat !== "school_day" && cat !== "special_day") continue
-      const d = ev.getDate()
-      const key = EventScheduler.dayKey(
-        d.getFullYear(),
-        d.getMonth(),
-        d.getDate(),
-      )
-      if (targetDates.has(key)) list.removeById(ev.getId())
-    }
-    for (const ev of buildJoseSchedule()) list.add(ev)
-    setYear(2026)
-    setMonth(4)
+    if (id.startsWith(ROTATION_ID_PREFIX)) return
+    userList.removeById(id)
     bump()
   }
 
@@ -364,15 +378,6 @@ export function CalendarClient() {
                       <span className="hidden sm:inline">Grade</span>
                     </>
                   )}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleLoadJoseSchedule}
-                  title="Carrega a agenda da persona José (maio/2026)"
-                >
-                  <GraduationCap className="h-4 w-4" />
-                  <span className="hidden sm:inline">Agenda do José</span>
                 </Button>
                 <Button size="sm" onClick={openNewEvent}>
                   <Plus className="h-4 w-4" />
@@ -664,8 +669,6 @@ export function CalendarClient() {
             )}
           </CardContent>
         </Card>
-
-        <ConceptPanel />
       </div>
 
       {formOpen && (
@@ -735,6 +738,9 @@ function EventCard({
   event: CalendarEvent
   onDelete: () => void
 }) {
+  // Eventos da rotação são gerados automaticamente — não dá pra deletar.
+  const canDelete = !event.getId().startsWith(ROTATION_ID_PREFIX)
+
   let detail: string | null = null
   if (isStudyEvent(event)) {
     detail = `${event.getSubject() || "Estudo"} · ${event.getDurationMinutes()} min`
@@ -789,15 +795,17 @@ function EventCard({
           {event.constructor.name}
         </p>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-7 w-7 shrink-0"
-        onClick={onDelete}
-        aria-label="Remover evento"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </Button>
+      {canDelete && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0"
+          onClick={onDelete}
+          aria-label="Remover evento"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      )}
     </div>
   )
 }
