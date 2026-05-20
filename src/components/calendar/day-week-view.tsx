@@ -18,7 +18,7 @@ const TOTAL_PX = (HOUR_END - HOUR_START) * PX_PER_HOUR
 // Tipos / helpers
 // ────────────────────────────────────────────────────────
 
-type TimedEntry = {
+export type TimedEntry = {
   id: string
   title: string
   icon: string
@@ -30,7 +30,7 @@ type TimedEntry = {
   source: CalendarEvent
 }
 
-type AllDayEntry = {
+export type AllDayEntry = {
   id: string
   title: string
   icon: string
@@ -117,10 +117,12 @@ function HourGridColumn({
   timed,
   showLeftRule = false,
   highlightToday = false,
+  onEntryClick,
 }: {
   timed: TimedEntry[]
   showLeftRule?: boolean
   highlightToday?: boolean
+  onEntryClick?: (entry: TimedEntry) => void
 }) {
   const hours: number[] = []
   for (let h = HOUR_START; h <= HOUR_END; h++) hours.push(h)
@@ -145,24 +147,13 @@ function HourGridColumn({
         )
       })}
 
-      {/* eventos */}
+      {/* eventos — viram botões clicáveis quando onEntryClick existe */}
       {timed.map((e) => {
         const isOutOfRange =
           e.endMin <= HOUR_START * 60 || e.startMin >= HOUR_END * 60
         if (isOutOfRange) return null
-        return (
-          <div
-            key={e.id}
-            className={cn(
-              "absolute left-1 right-1 rounded-md border px-1.5 py-0.5 text-[11px] overflow-hidden shadow-sm",
-              e.color,
-            )}
-            style={{
-              top: `${topPx(e.startMin)}px`,
-              height: `${heightPx(e.startMin, e.endMin)}px`,
-            }}
-            title={`${e.title} · ${fmtTime(e.startMin)}–${fmtTime(e.endMin)}`}
-          >
+        const inner = (
+          <>
             <div className="flex items-center gap-1 leading-tight font-medium">
               <span className="shrink-0">{e.icon}</span>
               <span className="truncate">{e.title}</span>
@@ -172,6 +163,32 @@ function HourGridColumn({
                 {fmtTime(e.startMin)}–{fmtTime(e.endMin)}
               </div>
             )}
+          </>
+        )
+        const className = cn(
+          "absolute left-1 right-1 rounded-md border px-1.5 py-0.5 text-[11px] overflow-hidden shadow-sm text-left",
+          e.color,
+          onEntryClick && "cursor-pointer hover:brightness-110 transition-all",
+        )
+        const style = {
+          top: `${topPx(e.startMin)}px`,
+          height: `${heightPx(e.startMin, e.endMin)}px`,
+        }
+        const titleAttr = `${e.title} · ${fmtTime(e.startMin)}–${fmtTime(e.endMin)}`
+        return onEntryClick ? (
+          <button
+            key={e.id}
+            type="button"
+            className={className}
+            style={style}
+            title={titleAttr}
+            onClick={() => onEntryClick(e)}
+          >
+            {inner}
+          </button>
+        ) : (
+          <div key={e.id} className={className} style={style} title={titleAttr}>
+            {inner}
           </div>
         )
       })}
@@ -202,6 +219,8 @@ interface DayViewProps {
   year: number
   month: number
   day: number
+  onEntryClick?: (entry: TimedEntry) => void
+  onAllDayClick?: (entry: AllDayEntry) => void
 }
 
 const WEEKDAY_LABELS = [
@@ -231,7 +250,14 @@ const MONTH_LABELS = [
   "Dezembro",
 ]
 
-export function DayView({ list, year, month, day }: DayViewProps) {
+export function DayView({
+  list,
+  year,
+  month,
+  day,
+  onEntryClick,
+  onAllDayClick,
+}: DayViewProps) {
   const events = list.filterByDate(year, month, day).toArray()
   const { timed, allDay } = expandEvents(events)
 
@@ -264,25 +290,45 @@ export function DayView({ list, year, month, day }: DayViewProps) {
             o dia todo
           </div>
           <div className="space-y-1">
-            {allDay.map((e) => (
-              <div
-                key={e.id}
-                className={cn(
-                  "rounded-md border px-2 py-1 text-xs flex items-center gap-1.5",
-                  e.color,
-                )}
-              >
-                <span>{e.icon}</span>
-                <span className="font-medium">{e.title}</span>
-              </div>
-            ))}
+            {allDay.map((e) =>
+              onAllDayClick ? (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => onAllDayClick(e)}
+                  className={cn(
+                    "w-full rounded-md border px-2 py-1 text-xs flex items-center gap-1.5 text-left hover:brightness-110 transition-all",
+                    e.color,
+                  )}
+                >
+                  <span>{e.icon}</span>
+                  <span className="font-medium">{e.title}</span>
+                </button>
+              ) : (
+                <div
+                  key={e.id}
+                  className={cn(
+                    "rounded-md border px-2 py-1 text-xs flex items-center gap-1.5",
+                    e.color,
+                  )}
+                >
+                  <span>{e.icon}</span>
+                  <span className="font-medium">{e.title}</span>
+                </div>
+              ),
+            )}
           </div>
         </div>
       )}
 
       {/* grid horário */}
       <div className="pl-14 pr-1 relative">
-        <HourGridColumn timed={timed} showLeftRule highlightToday={isToday} />
+        <HourGridColumn
+          timed={timed}
+          showLeftRule
+          highlightToday={isToday}
+          onEntryClick={onEntryClick}
+        />
       </div>
     </div>
   )
@@ -299,9 +345,19 @@ interface WeekViewProps {
   month: number
   day: number
   onPickDay?: (year: number, month: number, day: number) => void
+  onEntryClick?: (entry: TimedEntry) => void
+  onAllDayClick?: (entry: AllDayEntry) => void
 }
 
-export function WeekView({ list, year, month, day, onPickDay }: WeekViewProps) {
+export function WeekView({
+  list,
+  year,
+  month,
+  day,
+  onPickDay,
+  onEntryClick,
+  onAllDayClick,
+}: WeekViewProps) {
   // Acha o domingo da semana que contém a data passada.
   const ref = new Date(year, month, day)
   const sunday = new Date(year, month, day - ref.getDay())
@@ -353,18 +409,41 @@ export function WeekView({ list, year, month, day, onPickDay }: WeekViewProps) {
               key={`ad-${d.year}-${d.month}-${d.day}`}
               className="border-l border-border/30 px-1 py-1 min-h-[1.5rem] flex flex-col gap-0.5"
             >
-              {allDay.map((ev) => (
-                <div
-                  key={ev.getId()}
-                  className={cn(
-                    "text-[10px] rounded px-1 truncate border",
-                    ev.getColor(),
-                  )}
-                  title={ev.getTitle()}
-                >
-                  {ev.getIcon()} {ev.getTitle()}
-                </div>
-              ))}
+              {allDay.map((ev) =>
+                onAllDayClick ? (
+                  <button
+                    key={ev.getId()}
+                    type="button"
+                    className={cn(
+                      "text-[10px] rounded px-1 truncate border text-left hover:brightness-110 transition-all",
+                      ev.getColor(),
+                    )}
+                    title={ev.getTitle()}
+                    onClick={() =>
+                      onAllDayClick({
+                        id: ev.getId(),
+                        title: ev.getTitle(),
+                        icon: ev.getIcon(),
+                        color: ev.getColor(),
+                        source: ev,
+                      })
+                    }
+                  >
+                    {ev.getIcon()} {ev.getTitle()}
+                  </button>
+                ) : (
+                  <div
+                    key={ev.getId()}
+                    className={cn(
+                      "text-[10px] rounded px-1 truncate border",
+                      ev.getColor(),
+                    )}
+                    title={ev.getTitle()}
+                  >
+                    {ev.getIcon()} {ev.getTitle()}
+                  </div>
+                ),
+              )}
             </div>
           )
         })}
@@ -427,6 +506,7 @@ export function WeekView({ list, year, month, day, onPickDay }: WeekViewProps) {
               key={`col-${d.year}-${d.month}-${d.day}`}
               timed={timed}
               highlightToday={d.isToday}
+              onEntryClick={onEntryClick}
             />
           )
         })}

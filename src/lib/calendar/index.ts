@@ -18,6 +18,7 @@ export {
   isAssignmentEvent,
   isSchoolDayEvent,
   isSpecialDayEvent,
+  type ExamType,
 } from "./EventTypes"
 
 export { Period } from "./Period"

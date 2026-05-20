@@ -35,12 +35,22 @@ import {
   MAX_DATE,
   isAfterMax,
   type EventCategory,
+  type ExamType,
   type SerializedEvent,
 } from "@/lib/calendar"
 import { EventForm } from "@/components/calendar/event-form"
 import { CategoryFilter } from "@/components/calendar/category-filter"
 import { CommandPalette } from "@/components/calendar/command-palette"
-import { DayView, WeekView } from "@/components/calendar/day-week-view"
+import {
+  DayView,
+  WeekView,
+  type TimedEntry,
+  type AllDayEntry,
+} from "@/components/calendar/day-week-view"
+import {
+  EventDetailModal,
+  type DetailTarget,
+} from "@/components/calendar/event-detail-modal"
 import { totalAcademicMinutes } from "@/components/calendar/timeline-view"
 import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts"
 
@@ -120,6 +130,8 @@ export function CalendarClient() {
 
   const [formOpen, setFormOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // Modal de detalhes: aparece quando o usuário clica num bloco/evento.
+  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>("month")
   const [activeCats, setActiveCats] = useState<Set<EventCategory>>(
     () => new Set(ALL_CATS),
@@ -303,6 +315,7 @@ export function CalendarClient() {
     subject?: string
     durationMinutes?: number
     exam?: string
+    examType?: ExamType
   }) => {
     let event: CalendarEvent
     if (data.kind === "study") {
@@ -318,6 +331,7 @@ export function CalendarClient() {
         data.title,
         data.date,
         data.exam ?? "ENEM",
+        data.examType ?? "FA",
         data.description,
       )
     } else {
@@ -375,7 +389,8 @@ export function CalendarClient() {
     newEvent: openNewEvent,
     search: () => setPaletteOpen(true),
     escape: () => {
-      if (paletteOpen) setPaletteOpen(false)
+      if (detailTarget) setDetailTarget(null)
+      else if (paletteOpen) setPaletteOpen(false)
       else if (formOpen) setFormOpen(false)
     },
   })
@@ -473,6 +488,20 @@ export function CalendarClient() {
                 year={selected?.year ?? year}
                 month={selected?.month ?? month}
                 day={selected?.day ?? todayCell.day}
+                onEntryClick={(entry: TimedEntry) =>
+                  setDetailTarget({
+                    title: entry.title,
+                    startMinutes: entry.startMin,
+                    endMinutes: entry.endMin,
+                    source: entry.source,
+                  })
+                }
+                onAllDayClick={(entry: AllDayEntry) =>
+                  setDetailTarget({
+                    title: entry.title,
+                    source: entry.source,
+                  })
+                }
               />
             )}
 
@@ -489,6 +518,20 @@ export function CalendarClient() {
                   setSelected({ year: y, month: m, day: d })
                   setViewMode("day")
                 }}
+                onEntryClick={(entry: TimedEntry) =>
+                  setDetailTarget({
+                    title: entry.title,
+                    startMinutes: entry.startMin,
+                    endMinutes: entry.endMin,
+                    source: entry.source,
+                  })
+                }
+                onAllDayClick={(entry: AllDayEntry) =>
+                  setDetailTarget({
+                    title: entry.title,
+                    source: entry.source,
+                  })
+                }
               />
             )}
 
@@ -729,6 +772,14 @@ export function CalendarClient() {
             setPaletteOpen(false)
           }}
           onClose={() => setPaletteOpen(false)}
+        />
+      )}
+
+      {detailTarget && (
+        <EventDetailModal
+          target={detailTarget}
+          onClose={() => setDetailTarget(null)}
+          onDelete={handleDelete}
         />
       )}
     </div>

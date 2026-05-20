@@ -81,6 +81,48 @@ export const SPECIAL_EVENTS: ReadonlyArray<SpecialDef> = [
     kind: "FOL",
     description: "Festival of Learning.",
   },
+  // Semana de provas SA (Summative Assessment) — 25 a 29/05.
+  // Pausam o ciclo da rotação. Cada dia é um "Dia de prova".
+  {
+    year: 2026,
+    month: 4,
+    day: 25,
+    title: "Prova SA",
+    kind: "SA",
+    description: "Summative Assessment — semana de provas.",
+  },
+  {
+    year: 2026,
+    month: 4,
+    day: 26,
+    title: "Prova SA",
+    kind: "SA",
+    description: "Summative Assessment — semana de provas.",
+  },
+  {
+    year: 2026,
+    month: 4,
+    day: 27,
+    title: "Prova SA",
+    kind: "SA",
+    description: "Summative Assessment — semana de provas.",
+  },
+  {
+    year: 2026,
+    month: 4,
+    day: 28,
+    title: "Prova SA",
+    kind: "SA",
+    description: "Summative Assessment — semana de provas.",
+  },
+  {
+    year: 2026,
+    month: 4,
+    day: 29,
+    title: "Prova SA",
+    kind: "SA",
+    description: "Último dia da semana de provas SA.",
+  },
   // Férias escolares — 25 a 30 de junho. Pausam o ciclo da rotação.
   {
     year: 2026,
@@ -144,14 +186,13 @@ function dayKey(y: number, m: number, d: number): string {
 // ─────────────────────────────────────────────────────────────
 // TEMPLATES DOS DIAS DO CICLO
 // ─────────────────────────────────────────────────────────────
-// Cada Dia tem até 4 blocos acadêmicos (P1, P2, P3, P4).
-// O "slot 4" (após o Break) é determinado pelo DIA DA SEMANA,
-// não pelo número do Dia. Exceção: Dia 3 tem só 3 blocos acadêmicos
-// (sem slot variável) — é o dia curto da rotação.
+// Cada Dia tem 3 blocos acadêmicos fixos (P1, P2, P3) — sempre nas mesmas
+// posições. O slot adicional (entre Break e P2) é determinado pelo DIA DA
+// SEMANA, não pelo número do Dia. Ver DAY_OF_WEEK_SLOT abaixo.
 const CYCLE_TEMPLATES: Record<number, ReadonlyArray<string>> = {
   1: ["Inglês", "Biologia", "AP Computer Science"],
   2: ["Matemática", "Português", "AP Seminar"],
-  3: ["AP Computer Science", "Inglês", "Química"], // 3 blocos (curto)
+  3: ["AP Computer Science", "Inglês", "Química"],
   4: ["AP Seminar", "Matemática", "Português"],
   5: ["Física", "AP Computer Science", "Inglês"],
   6: ["Português", "AP Seminar", "Matemática"],
@@ -181,16 +222,6 @@ const SLOTS_7 = [
   { start: T(9, 55), end: T(10, 50) },
   { start: T(10, 50), end: T(11, 35) },
   { start: T(11, 35), end: T(12, 30) },
-]
-
-// Layout 6 blocos (Dia 3): P1, Advisory, Break, P2, Almoço, P3
-const SLOTS_6 = [
-  { start: T(7, 30), end: T(8, 25) },
-  { start: T(8, 25), end: T(8, 40) },
-  { start: T(8, 40), end: T(9, 0) },
-  { start: T(9, 0), end: T(9, 55) },
-  { start: T(9, 55), end: T(10, 35) },
-  { start: T(10, 35), end: T(11, 30) },
 ]
 
 // ─────────────────────────────────────────────────────────────
@@ -300,25 +331,19 @@ export class RotationEngine {
     const weekday = RotationEngine.weekday(year, month, day)
     const dowSlot = DAY_OF_WEEK_SLOT[weekday] ?? ""
 
+    // Todos os Dias têm 7 blocos com o mesmo layout:
+    //   P1, Advisory, Break, [slot do dia da semana], P2, Almoço, P3
+    // O slot 4 varia por dia da semana:
+    //   Seg → Projeto · Ter → Extra de Ciências · Qua → Mandarim
+    //   Qui → X Block de quinta · Sex → Educação Física
     const periods: Period[] = []
-    if (cycle === 3) {
-      // 6 blocos: P1, Advisory, Break, P2, Almoço, P3
-      periods.push(new Period(1, academic[0], SLOTS_6[0].start, SLOTS_6[0].end))
-      periods.push(new Period(2, "Advisory", SLOTS_6[1].start, SLOTS_6[1].end))
-      periods.push(new Period(3, "Break", SLOTS_6[2].start, SLOTS_6[2].end))
-      periods.push(new Period(4, academic[1], SLOTS_6[3].start, SLOTS_6[3].end))
-      periods.push(new Period(5, "Almoço", SLOTS_6[4].start, SLOTS_6[4].end))
-      periods.push(new Period(6, academic[2], SLOTS_6[5].start, SLOTS_6[5].end))
-    } else {
-      // 7 blocos: P1, Advisory, Break, [DOW], P2, Almoço, P3
-      periods.push(new Period(1, academic[0], SLOTS_7[0].start, SLOTS_7[0].end))
-      periods.push(new Period(2, "Advisory", SLOTS_7[1].start, SLOTS_7[1].end))
-      periods.push(new Period(3, "Break", SLOTS_7[2].start, SLOTS_7[2].end))
-      periods.push(new Period(4, dowSlot, SLOTS_7[3].start, SLOTS_7[3].end))
-      periods.push(new Period(5, academic[1], SLOTS_7[4].start, SLOTS_7[4].end))
-      periods.push(new Period(6, "Almoço", SLOTS_7[5].start, SLOTS_7[5].end))
-      periods.push(new Period(7, academic[2], SLOTS_7[6].start, SLOTS_7[6].end))
-    }
+    periods.push(new Period(1, academic[0], SLOTS_7[0].start, SLOTS_7[0].end))
+    periods.push(new Period(2, "Advisory", SLOTS_7[1].start, SLOTS_7[1].end))
+    periods.push(new Period(3, "Break", SLOTS_7[2].start, SLOTS_7[2].end))
+    periods.push(new Period(4, dowSlot, SLOTS_7[3].start, SLOTS_7[3].end))
+    periods.push(new Period(5, academic[1], SLOTS_7[4].start, SLOTS_7[4].end))
+    periods.push(new Period(6, "Almoço", SLOTS_7[5].start, SLOTS_7[5].end))
+    periods.push(new Period(7, academic[2], SLOTS_7[6].start, SLOTS_7[6].end))
     return periods
   }
 

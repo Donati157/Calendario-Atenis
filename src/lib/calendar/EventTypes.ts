@@ -73,30 +73,46 @@ export class StudyEvent extends CalendarEvent {
 // ──────────────────────────────────────────────────────────
 // Prova / exame
 // ──────────────────────────────────────────────────────────
+// Tipos válidos de prova (regra de negócio: toda prova é FA ou SA).
+//   FA = Formative Assessment (avaliação formativa, peso menor)
+//   SA = Summative Assessment (avaliação somativa, peso maior)
+export type ExamType = "FA" | "SA"
+
 export class ExamEvent extends CalendarEvent {
   // Que prova (ENEM, Fuvest, AP, simulado, etc.)
   private exam: string
+  // Toda prova OBRIGATORIAMENTE é FA ou SA.
+  private examType: ExamType
 
   public constructor(
     title: string,
     date: Date,
     exam: string,
+    examType: ExamType = "FA",
     description = "",
     id?: string,
   ) {
     super(title, date, description, id)
     this.exam = exam
+    this.examType = examType
   }
 
   public getExam(): string {
     return this.exam
   }
+  public getExamType(): ExamType {
+    return this.examType
+  }
 
   public override getCategory(): EventCategory {
     return "exam"
   }
+  // Cor depende do tipo. SA é mais vermelho (mais peso), FA é mais laranja.
   public override getColor(): string {
-    return "bg-rose-500/15 text-rose-700 border-rose-500/30 dark:text-rose-300"
+    if (this.examType === "SA") {
+      return "bg-red-500/15 text-red-700 border-red-500/30 dark:text-red-300"
+    }
+    return "bg-orange-500/15 text-orange-700 border-orange-500/30 dark:text-orange-300"
   }
   public override getIcon(): string {
     return "📝"
@@ -107,7 +123,11 @@ export class ExamEvent extends CalendarEvent {
   }
 
   public override toJSON(): SerializedEvent {
-    return { ...super.toJSON(), exam: this.exam }
+    return {
+      ...super.toJSON(),
+      exam: this.exam,
+      examType: this.examType,
+    }
   }
 }
 
@@ -266,11 +286,19 @@ export class SpecialDayEvent extends CalendarEvent {
     return "special_day"
   }
   public override getColor(): string {
+    // Cor depende do tipo do dia especial.
+    if (this.kind_ === "SA") {
+      return "bg-red-500/20 text-red-700 border-red-500/40 dark:text-red-300"
+    }
+    if (this.kind_ === "FA") {
+      return "bg-orange-500/20 text-orange-700 border-orange-500/40 dark:text-orange-300"
+    }
     return "bg-violet-500/15 text-violet-700 border-violet-500/30 dark:text-violet-300"
   }
   public override getIcon(): string {
     // Ícone depende do tipo do dia especial.
     if (this.kind_ === "Férias") return "🏖️"
+    if (this.kind_ === "SA" || this.kind_ === "FA") return "📝"
     return "🎉"
   }
   // Dia inteiro — 8h aproximadas (ex.: 7:30 às 15:30).
@@ -302,14 +330,17 @@ export function eventFromJSON(raw: SerializedEvent): CalendarEvent {
         raw.description,
         raw.id,
       )
-    case "exam":
+    case "exam": {
+      const et = raw.examType === "SA" ? "SA" : "FA"
       return new ExamEvent(
         raw.title,
         date,
         typeof raw.exam === "string" ? raw.exam : "ENEM",
+        et,
         raw.description,
         raw.id,
       )
+    }
     case "assignment":
       return new AssignmentEvent(
         raw.title,

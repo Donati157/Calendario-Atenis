@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { AlertTriangle } from "lucide-react"
-import type { EventCategory, EventList } from "@/lib/calendar"
+import type { EventCategory, EventList, ExamType } from "@/lib/calendar"
 
 interface EventFormProps {
   initialDate: Date
@@ -20,6 +20,7 @@ interface EventFormProps {
     subject?: string
     durationMinutes?: number
     exam?: string
+    examType?: ExamType
   }) => void
 }
 
@@ -42,6 +43,7 @@ export function EventForm({
   const [subject, setSubject] = useState("")
   const [durationMinutes, setDurationMinutes] = useState(30)
   const [exam, setExam] = useState("ENEM")
+  const [examType, setExamType] = useState<ExamType>("FA")
 
   // Conflito de horário — tarefas (duration 0) nunca conflitam.
   const conflicts = useMemo(() => {
@@ -65,6 +67,7 @@ export function EventForm({
       subject: subject.trim() || undefined,
       durationMinutes,
       exam: exam.trim() || undefined,
+      examType: kind === "exam" ? examType : undefined,
     })
   }
 
@@ -160,15 +163,45 @@ export function EventForm({
             )}
 
             {kind === "exam" && (
-              <div className="space-y-2">
-                <Label htmlFor="exam">Prova</Label>
-                <Input
-                  id="exam"
-                  value={exam}
-                  onChange={(e) => setExam(e.target.value)}
-                  placeholder="ENEM, Fuvest, AP Calculus, simulado..."
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label>Tipo de avaliação</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["FA", "SA"] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setExamType(t)}
+                        className={cn(
+                          "py-2 px-2 rounded-lg border text-sm transition-colors flex flex-col items-start gap-0.5",
+                          examType === t
+                            ? t === "SA"
+                              ? "bg-red-500/15 text-red-300 border-red-500/40"
+                              : "bg-orange-500/15 text-orange-300 border-orange-500/40"
+                            : "bg-card hover:bg-secondary/50 border-border/60",
+                        )}
+                      >
+                        <span className="text-xs font-semibold">{t}</span>
+                        <span className="text-[10px] opacity-80">
+                          {t === "FA" ? "Formative Assessment" : "Summative Assessment"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Toda prova precisa ser FA (formativa) ou SA (somativa).
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="exam">Prova</Label>
+                  <Input
+                    id="exam"
+                    value={exam}
+                    onChange={(e) => setExam(e.target.value)}
+                    placeholder="ENEM, Fuvest, AP Calculus, simulado..."
+                  />
+                </div>
+              </>
             )}
 
             {kind === "assignment" && (
