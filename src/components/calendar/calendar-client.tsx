@@ -14,9 +14,6 @@ import {
   Code2,
   Trash2,
   Search,
-  Grid3x3,
-  Activity,
-  Clock,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -41,15 +38,11 @@ import {
 import { EventForm } from "@/components/calendar/event-form"
 import { CategoryFilter } from "@/components/calendar/category-filter"
 import { CommandPalette } from "@/components/calendar/command-palette"
-import { HeatmapView } from "@/components/calendar/heatmap-view"
-import {
-  TimelineView,
-  totalAcademicMinutes,
-} from "@/components/calendar/timeline-view"
+import { DayView, WeekView } from "@/components/calendar/day-week-view"
+import { totalAcademicMinutes } from "@/components/calendar/timeline-view"
 import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts"
 
-type ViewMode = "month" | "heatmap"
-type DayMode = "list" | "timeline"
+type ViewMode = "day" | "week" | "month"
 const ALL_CATS: EventCategory[] = [
   "school_day",
   "special_day",
@@ -126,7 +119,6 @@ export function CalendarClient() {
   const [formOpen, setFormOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>("month")
-  const [dayMode, setDayMode] = useState<DayMode>("list")
   const [activeCats, setActiveCats] = useState<Set<EventCategory>>(
     () => new Set(ALL_CATS),
   )
@@ -188,23 +180,60 @@ export function CalendarClient() {
     [list],
   )
 
-  const goPrevMonth = useCallback(() => {
-    if (month === 0) {
-      setYear((y) => y - 1)
-      setMonth(11)
-    } else {
-      setMonth((m) => m - 1)
-    }
-  }, [month])
+  // Navegação adaptativa: ← → significa coisa diferente em cada view.
+  //   Day:    -1 dia / +1 dia
+  //   Week:   -7 dias / +7 dias
+  //   Month:  -1 mês / +1 mês
+  const stepDate = useCallback(
+    (deltaDays: number) => {
+      const ref = selected
+        ? new Date(selected.year, selected.month, selected.day)
+        : new Date(year, month, 1)
+      const next = new Date(
+        ref.getFullYear(),
+        ref.getMonth(),
+        ref.getDate() + deltaDays,
+      )
+      setYear(next.getFullYear())
+      setMonth(next.getMonth())
+      setSelected({
+        year: next.getFullYear(),
+        month: next.getMonth(),
+        day: next.getDate(),
+      })
+    },
+    [selected, year, month],
+  )
 
-  const goNextMonth = useCallback(() => {
-    if (month === 11) {
-      setYear((y) => y + 1)
-      setMonth(0)
-    } else {
-      setMonth((m) => m + 1)
-    }
-  }, [month])
+  const stepMonth = useCallback(
+    (delta: number) => {
+      let newMonth = month + delta
+      let newYear = year
+      while (newMonth < 0) {
+        newMonth += 12
+        newYear--
+      }
+      while (newMonth > 11) {
+        newMonth -= 12
+        newYear++
+      }
+      setYear(newYear)
+      setMonth(newMonth)
+    },
+    [year, month],
+  )
+
+  const goPrev = useCallback(() => {
+    if (viewMode === "day") stepDate(-1)
+    else if (viewMode === "week") stepDate(-7)
+    else stepMonth(-1)
+  }, [viewMode, stepDate, stepMonth])
+
+  const goNext = useCallback(() => {
+    if (viewMode === "day") stepDate(1)
+    else if (viewMode === "week") stepDate(7)
+    else stepMonth(1)
+  }, [viewMode, stepDate, stepMonth])
 
   const goToday = useCallback(() => {
     const now = new Date()
@@ -264,10 +293,6 @@ export function CalendarClient() {
     bump()
   }
 
-  const selectedEvents = selected
-    ? list.filterByDate(selected.year, selected.month, selected.day)
-    : null
-
   const isSameDate = (
     cell: { year: number; month: number; day: number },
     target: { year: number; month: number; day: number } | null,
@@ -295,8 +320,8 @@ export function CalendarClient() {
   }, [selected, todayCell.year, todayCell.month, todayCell.day])
 
   useKeyboardShortcuts({
-    prevMonth: goPrevMonth,
-    nextMonth: goNextMonth,
+    prevMonth: goPrev,
+    nextMonth: goNext,
     today: goToday,
     newEvent: openNewEvent,
     search: () => setPaletteOpen(true),
@@ -316,16 +341,16 @@ export function CalendarClient() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={goPrevMonth}
-                  aria-label="Mês anterior"
+                  onClick={goPrev}
+                  aria-label="Anterior"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={goNextMonth}
-                  aria-label="Próximo mês"
+                  onClick={goNext}
+                  aria-label="Próximo"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -333,9 +358,25 @@ export function CalendarClient() {
                   Hoje
                 </Button>
               </div>
-              <CardTitle className="text-xl font-display">
-                {CalendarGrid.monthName(month)} {year}
-              </CardTitle>
+              {/* Segmented control Day / Week / Month — estilo Apple Calendar */}
+              <div className="inline-flex border border-border rounded-lg p-0.5 bg-secondary/30">
+                {(["day", "week", "month"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setViewMode(m)}
+                    className={cn(
+                      "px-3 py-1 text-xs rounded-md transition-colors capitalize",
+                      viewMode === m
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {m === "day" ? "Dia" : m === "week" ? "Semana" : "Mês"}
+                  </button>
+                ))}
+              </div>
+
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
@@ -359,26 +400,6 @@ export function CalendarClient() {
                 >
                   <Search className="h-4 w-4" />
                 </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === "heatmap" ? "default" : "outline"}
-                  onClick={() =>
-                    setViewMode((v) => (v === "month" ? "heatmap" : "month"))
-                  }
-                  title="Alternar entre grade e heatmap"
-                >
-                  {viewMode === "month" ? (
-                    <>
-                      <Activity className="h-4 w-4" />
-                      <span className="hidden sm:inline">Heatmap</span>
-                    </>
-                  ) : (
-                    <>
-                      <Grid3x3 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Grade</span>
-                    </>
-                  )}
-                </Button>
                 <Button size="sm" onClick={openNewEvent}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Novo evento</span>
@@ -395,10 +416,35 @@ export function CalendarClient() {
             </div>
           </CardHeader>
           <CardContent>
-            {viewMode === "heatmap" ? (
-              <HeatmapView list={filteredList} year={year} month={month} />
-            ) : (
+            {viewMode === "day" && (
+              <DayView
+                list={filteredList}
+                year={selected?.year ?? year}
+                month={selected?.month ?? month}
+                day={selected?.day ?? todayCell.day}
+              />
+            )}
+
+            {viewMode === "week" && (
+              <WeekView
+                list={filteredList}
+                year={selected?.year ?? year}
+                month={selected?.month ?? month}
+                day={selected?.day ?? todayCell.day}
+                onPickDay={(y, m, d) => {
+                  setYear(y)
+                  setMonth(m)
+                  setSelected({ year: y, month: m, day: d })
+                  setViewMode("day")
+                }}
+              />
+            )}
+
+            {viewMode === "month" && (
               <>
+                <div className="text-xl font-display font-bold mb-3">
+                  {CalendarGrid.monthName(month)} {year}
+                </div>
                 <div className="grid grid-cols-7 mb-2">
                   {CalendarGrid.weekdayHeaders().map((h) => (
                     <div
@@ -428,13 +474,17 @@ export function CalendarClient() {
                       return (
                         <button
                           key={`${r}-${c}`}
-                          onClick={() =>
+                          onClick={() => {
+                            // Apple-Calendar style: clicar num dia abre a Day view.
+                            setYear(cell.year)
+                            setMonth(cell.month)
                             setSelected({
                               year: cell.year,
                               month: cell.month,
                               day: cell.day,
                             })
-                          }
+                            setViewMode("day")
+                          }}
                           className={cn(
                             "h-20 sm:h-24 rounded-lg border text-left p-1.5 flex flex-col gap-1 transition-all",
                             cell.inMonth
@@ -487,88 +537,6 @@ export function CalendarClient() {
             )}
           </CardContent>
         </Card>
-
-        {selected && (
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <CardTitle className="text-base">
-                    {selected.day} de {CalendarGrid.monthName(selected.month)},{" "}
-                    {selected.year}
-                  </CardTitle>
-                  <CardDescription>
-                    {selectedEvents && selectedEvents.size() > 0
-                      ? `${selectedEvents.size()} evento${selectedEvents.size() > 1 ? "s" : ""}`
-                      : "Nenhum evento neste dia"}
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex border border-border rounded-md overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => setDayMode("list")}
-                      className={cn(
-                        "px-2.5 py-1 text-xs flex items-center gap-1.5",
-                        dayMode === "list"
-                          ? "bg-secondary text-foreground"
-                          : "text-muted-foreground hover:bg-secondary/50",
-                      )}
-                      title="Lista"
-                    >
-                      <Grid3x3 className="h-3.5 w-3.5" />
-                      Lista
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDayMode("timeline")}
-                      className={cn(
-                        "px-2.5 py-1 text-xs flex items-center gap-1.5 border-l border-border",
-                        dayMode === "timeline"
-                          ? "bg-secondary text-foreground"
-                          : "text-muted-foreground hover:bg-secondary/50",
-                      )}
-                      title="Timeline"
-                    >
-                      <Clock className="h-3.5 w-3.5" />
-                      Timeline
-                    </button>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setFormOpen(true)}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Adicionar
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {dayMode === "timeline" ? (
-                <TimelineView
-                  list={filteredList}
-                  year={selected.year}
-                  month={selected.month}
-                  day={selected.day}
-                />
-              ) : selectedEvents && selectedEvents.size() > 0 ? (
-                selectedEvents.toArray().map((ev) => (
-                  <EventCard
-                    key={ev.getId()}
-                    event={ev}
-                    onDelete={() => handleDelete(ev.getId())}
-                  />
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Clique em "Adicionar" para criar um evento neste dia.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       <div className="space-y-5">
