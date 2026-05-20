@@ -35,6 +35,24 @@ export const ANCHOR = {
 } as const
 
 // ─────────────────────────────────────────────────────────────
+// LIMITE — calendário não acessa nada DEPOIS dessa data.
+// ─────────────────────────────────────────────────────────────
+export const MAX_DATE = {
+  year: 2026,
+  month: 5, // junho (0-indexed)
+  day: 30,
+} as const
+
+// True se a data está depois do MAX_DATE.
+export function isAfterMax(year: number, month: number, day: number): boolean {
+  if (year > MAX_DATE.year) return true
+  if (year < MAX_DATE.year) return false
+  if (month > MAX_DATE.month) return true
+  if (month < MAX_DATE.month) return false
+  return day > MAX_DATE.day
+}
+
+// ─────────────────────────────────────────────────────────────
 // EVENTOS ESPECIAIS (pausam o ciclo)
 // ─────────────────────────────────────────────────────────────
 type SpecialDef = {
@@ -62,6 +80,55 @@ export const SPECIAL_EVENTS: ReadonlyArray<SpecialDef> = [
     title: "FOL",
     kind: "FOL",
     description: "Festival of Learning.",
+  },
+  // Férias escolares — 25 a 30 de junho. Pausam o ciclo da rotação.
+  {
+    year: 2026,
+    month: 5,
+    day: 25,
+    title: "Férias",
+    kind: "Férias",
+    description: "Início das férias escolares.",
+  },
+  {
+    year: 2026,
+    month: 5,
+    day: 26,
+    title: "Férias",
+    kind: "Férias",
+    description: "Férias escolares.",
+  },
+  {
+    year: 2026,
+    month: 5,
+    day: 27,
+    title: "Férias",
+    kind: "Férias",
+    description: "Férias escolares.",
+  },
+  {
+    year: 2026,
+    month: 5,
+    day: 28,
+    title: "Férias",
+    kind: "Férias",
+    description: "Férias escolares.",
+  },
+  {
+    year: 2026,
+    month: 5,
+    day: 29,
+    title: "Férias",
+    kind: "Férias",
+    description: "Férias escolares.",
+  },
+  {
+    year: 2026,
+    month: 5,
+    day: 30,
+    title: "Férias",
+    kind: "Férias",
+    description: "Último dia das férias escolares.",
   },
 ]
 

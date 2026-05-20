@@ -31,4 +31,6 @@ export {
   SPECIAL_EVENTS,
   RotationEngine,
   ROTATION_ID_PREFIX,
+  MAX_DATE,
+  isAfterMax,
 } from "./rotation"

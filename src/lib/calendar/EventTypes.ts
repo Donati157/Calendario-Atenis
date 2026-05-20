@@ -269,6 +269,8 @@ export class SpecialDayEvent extends CalendarEvent {
     return "bg-violet-500/15 text-violet-700 border-violet-500/30 dark:text-violet-300"
   }
   public override getIcon(): string {
+    // Ícone depende do tipo do dia especial.
+    if (this.kind_ === "Férias") return "🏖️"
     return "🎉"
   }
   // Dia inteiro — 8h aproximadas (ex.: 7:30 às 15:30).

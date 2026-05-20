@@ -32,6 +32,8 @@ import {
   isSpecialDayEvent,
   RotationEngine,
   ROTATION_ID_PREFIX,
+  MAX_DATE,
+  isAfterMax,
   type EventCategory,
   type SerializedEvent,
 } from "@/lib/calendar"
@@ -184,6 +186,8 @@ export function CalendarClient() {
   //   Day:    -1 dia / +1 dia
   //   Week:   -7 dias / +7 dias
   //   Month:  -1 mês / +1 mês
+  //
+  // Calendário NÃO acessa nada depois de MAX_DATE (30/06/2026).
   const stepDate = useCallback(
     (deltaDays: number) => {
       const ref = selected
@@ -194,6 +198,14 @@ export function CalendarClient() {
         ref.getMonth(),
         ref.getDate() + deltaDays,
       )
+      // Clamp: se passou do limite, encosta no MAX_DATE.
+      if (
+        isAfterMax(next.getFullYear(), next.getMonth(), next.getDate())
+      ) {
+        next.setFullYear(MAX_DATE.year)
+        next.setMonth(MAX_DATE.month)
+        next.setDate(MAX_DATE.day)
+      }
       setYear(next.getFullYear())
       setMonth(next.getMonth())
       setSelected({
@@ -217,11 +229,47 @@ export function CalendarClient() {
         newMonth -= 12
         newYear++
       }
+      // Clamp: não passa do mês do MAX_DATE.
+      if (
+        newYear > MAX_DATE.year ||
+        (newYear === MAX_DATE.year && newMonth > MAX_DATE.month)
+      ) {
+        newYear = MAX_DATE.year
+        newMonth = MAX_DATE.month
+      }
       setYear(newYear)
       setMonth(newMonth)
     },
     [year, month],
   )
+
+  // Verifica se o usuário já está no limite do calendário.
+  const isAtMax = useMemo(() => {
+    if (viewMode === "day") {
+      const d = selected ?? { year, month, day: today.getDate() }
+      return (
+        d.year === MAX_DATE.year &&
+        d.month === MAX_DATE.month &&
+        d.day >= MAX_DATE.day
+      )
+    }
+    if (viewMode === "week") {
+      // Semana é Dom..Sáb. Se o sábado >= MAX_DATE, está na última semana.
+      const ref = selected
+        ? new Date(selected.year, selected.month, selected.day)
+        : new Date(year, month, 1)
+      const saturday = new Date(
+        ref.getFullYear(),
+        ref.getMonth(),
+        ref.getDate() - ref.getDay() + 6,
+      )
+      const maxD = new Date(MAX_DATE.year, MAX_DATE.month, MAX_DATE.day)
+      return saturday.getTime() >= maxD.getTime()
+    }
+    // month
+    return year === MAX_DATE.year && month === MAX_DATE.month
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, selected, year, month])
 
   const goPrev = useCallback(() => {
     if (viewMode === "day") stepDate(-1)
@@ -230,10 +278,11 @@ export function CalendarClient() {
   }, [viewMode, stepDate, stepMonth])
 
   const goNext = useCallback(() => {
+    if (isAtMax) return // bloqueado pelo cap
     if (viewMode === "day") stepDate(1)
     else if (viewMode === "week") stepDate(7)
     else stepMonth(1)
-  }, [viewMode, stepDate, stepMonth])
+  }, [isAtMax, viewMode, stepDate, stepMonth])
 
   const goToday = useCallback(() => {
     const now = new Date()
@@ -350,7 +399,9 @@ export function CalendarClient() {
                   variant="outline"
                   size="icon"
                   onClick={goNext}
+                  disabled={isAtMax}
                   aria-label="Próximo"
+                  title={isAtMax ? "Sem acesso após junho/2026" : "Próximo"}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -432,6 +483,7 @@ export function CalendarClient() {
                 month={selected?.month ?? month}
                 day={selected?.day ?? todayCell.day}
                 onPickDay={(y, m, d) => {
+                  if (isAfterMax(y, m, d)) return // bloqueado pelo cap
                   setYear(y)
                   setMonth(m)
                   setSelected({ year: y, month: m, day: d })
@@ -471,10 +523,17 @@ export function CalendarClient() {
                         cell.month === todayCell.month &&
                         cell.day === todayCell.day
                       const isSel = isSameDate(cell, selected)
+                      const isLocked = isAfterMax(
+                        cell.year,
+                        cell.month,
+                        cell.day,
+                      )
                       return (
                         <button
                           key={`${r}-${c}`}
+                          disabled={isLocked}
                           onClick={() => {
+                            if (isLocked) return
                             // Apple-Calendar style: clicar num dia abre a Day view.
                             setYear(cell.year)
                             setMonth(cell.month)
@@ -485,6 +544,7 @@ export function CalendarClient() {
                             })
                             setViewMode("day")
                           }}
+                          title={isLocked ? "Sem acesso após junho/2026" : undefined}
                           className={cn(
                             "h-20 sm:h-24 rounded-lg border text-left p-1.5 flex flex-col gap-1 transition-all",
                             cell.inMonth
@@ -493,6 +553,8 @@ export function CalendarClient() {
                             isToday &&
                               "ring-1 ring-accent border-accent/60 shadow-[0_0_24px_-4px_hsl(var(--accent)/0.5)]",
                             isSel && "bg-accent/10 border-accent",
+                            isLocked &&
+                              "opacity-40 cursor-not-allowed bg-transparent border-dashed",
                           )}
                         >
                           <span
