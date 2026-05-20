@@ -199,8 +199,8 @@ function HourGridColumn({
           return (
             <span
               key={`label-${h}`}
-              className="absolute -left-12 text-[10px] font-mono text-muted-foreground"
-              style={{ top: `${top - 6}px`, width: "2.5rem", textAlign: "right" }}
+              className="absolute -left-10 sm:-left-12 text-[10px] font-mono text-muted-foreground"
+              style={{ top: `${top - 6}px`, width: "2.25rem", textAlign: "right" }}
             >
               {pad(h)}:00
             </span>
@@ -272,12 +272,12 @@ export function DayView({
   return (
     <div>
       {/* cabeçalho do dia */}
-      <div className="flex items-baseline gap-3 mb-4 pb-3 border-b border-border/40">
-        <div className="text-3xl font-bold font-display">
+      <div className="flex flex-col xs:flex-row xs:items-baseline gap-1 xs:gap-3 mb-3 sm:mb-4 pb-2 sm:pb-3 border-b border-border/40">
+        <div className="text-2xl sm:text-3xl font-bold font-display">
           {day} {MONTH_LABELS[month]}{" "}
           <span className="font-normal text-muted-foreground">{year}</span>
         </div>
-        <div className={cn("text-sm", isToday ? "text-accent" : "text-muted-foreground")}>
+        <div className={cn("text-xs sm:text-sm", isToday ? "text-accent" : "text-muted-foreground")}>
           {weekdayName}
           {isToday && " · hoje"}
         </div>
@@ -285,7 +285,7 @@ export function DayView({
 
       {/* all-day */}
       {allDay.length > 0 && (
-        <div className="pl-14 pr-1 mb-3 pb-3 border-b border-border/30">
+        <div className="pl-10 sm:pl-14 pr-1 mb-3 pb-3 border-b border-border/30">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
             o dia todo
           </div>
@@ -322,7 +322,7 @@ export function DayView({
       )}
 
       {/* grid horário */}
-      <div className="pl-14 pr-1 relative">
+      <div className="pl-10 sm:pl-14 pr-1 relative">
         <HourGridColumn
           timed={timed}
           showLeftRule
@@ -394,12 +394,16 @@ export function WeekView({
 
   return (
     <div>
-      <div className="text-2xl font-bold font-display mb-4 pb-3 border-b border-border/40">
+      <div className="text-xl sm:text-2xl font-bold font-display mb-3 sm:mb-4 pb-2 sm:pb-3 border-b border-border/40">
         {headerLabel}
       </div>
 
+      {/* Wrapper com scroll horizontal no mobile; cada coluna tem >= 70px */}
+      <div className="overflow-x-auto -mx-2 px-2 pb-2">
+        <div className="min-w-[560px]">
+
       {/* faixa "o dia todo" */}
-      <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] mb-1">
+      <div className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] mb-1">
         <div />
         {days.map((d) => {
           const evs = list.filterByDate(d.year, d.month, d.day).toArray()
@@ -450,7 +454,7 @@ export function WeekView({
       </div>
 
       {/* cabeçalho dos dias */}
-      <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] mb-1">
+      <div className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] mb-1">
         <div />
         {days.map((d) => (
           <button
@@ -479,7 +483,7 @@ export function WeekView({
       </div>
 
       {/* grid horário */}
-      <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] relative">
+      <div className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] relative">
         {/* coluna de horas (régua à esquerda) */}
         <div className="relative" style={{ height: `${TOTAL_PX}px` }}>
           {Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => {
@@ -510,6 +514,9 @@ export function WeekView({
             />
           )
         })}
+      </div>
+
+        </div>
       </div>
     </div>
   )

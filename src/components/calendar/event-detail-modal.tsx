@@ -101,11 +101,11 @@ export function EventDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <Card
-        className="w-full max-w-md"
+        className="w-full max-w-md max-h-[95vh] overflow-y-auto rounded-b-none rounded-t-2xl sm:rounded-2xl border-b-0 sm:border-b"
         onClick={(e) => e.stopPropagation()}
       >
         <CardHeader className="pb-3 relative">

@@ -75,11 +75,11 @@ export function CommandPalette({ list, onPick, onClose }: CommandPaletteProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center pt-[15vh] px-4"
+      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center pt-[8vh] sm:pt-[15vh] px-2 sm:px-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl rounded-xl border border-border bg-card shadow-2xl overflow-hidden animate-fade-in"
+        className="w-full max-w-xl rounded-xl border border-border bg-card shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60">

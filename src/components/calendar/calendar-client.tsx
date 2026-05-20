@@ -396,17 +396,19 @@ export function CalendarClient() {
   })
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-      <div className="space-y-5">
+    <div className="grid gap-4 lg:gap-5 lg:grid-cols-[1fr_320px]">
+      <div className="space-y-4 sm:space-y-5 min-w-0">
         <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
+          <CardHeader className="pb-3 px-3 sm:px-6">
+            {/* Linha 1: setas + Hoje à esquerda · ações à direita */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={goPrev}
                   aria-label="Anterior"
+                  className="h-9 w-9"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -417,14 +419,58 @@ export function CalendarClient() {
                   disabled={isAtMax}
                   aria-label="Próximo"
                   title={isAtMax ? "Sem acesso após junho/2026" : "Próximo"}
+                  className="h-9 w-9"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={goToday}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={goToday}
+                  className="h-9 px-2 sm:px-3"
+                >
                   Hoje
                 </Button>
               </div>
-              {/* Segmented control Day / Week / Month — estilo Apple Calendar */}
+
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setPaletteOpen(true)}
+                  title="Buscar evento (⌘K)"
+                  aria-label="Buscar"
+                  className="h-9 w-9 md:hidden"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setPaletteOpen(true)}
+                  title="Buscar evento (⌘K)"
+                  className="hidden md:inline-flex h-9"
+                >
+                  <Search className="h-4 w-4" />
+                  <span>Buscar</span>
+                  <kbd className="border border-border rounded px-1 py-0 text-[9px] uppercase ml-1">
+                    ⌘K
+                  </kbd>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={openNewEvent}
+                  className="h-9"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden xs:inline">Novo</span>
+                  <span className="hidden sm:inline ml-1">evento</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Linha 2: segmented control Day/Week/Month centralizado */}
+            <div className="mt-3 flex justify-center">
               <div className="inline-flex border border-border rounded-lg p-0.5 bg-secondary/30">
                 {(["day", "week", "month"] as const).map((m) => (
                   <button
@@ -432,7 +478,7 @@ export function CalendarClient() {
                     type="button"
                     onClick={() => setViewMode(m)}
                     className={cn(
-                      "px-3 py-1 text-xs rounded-md transition-colors capitalize",
+                      "px-3 sm:px-4 py-1 text-xs sm:text-sm rounded-md transition-colors",
                       viewMode === m
                         ? "bg-card text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground",
@@ -441,35 +487,6 @@ export function CalendarClient() {
                     {m === "day" ? "Dia" : m === "week" ? "Semana" : "Mês"}
                   </button>
                 ))}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setPaletteOpen(true)}
-                  title="Buscar evento (⌘K)"
-                  className="hidden sm:inline-flex"
-                >
-                  <Search className="h-4 w-4" />
-                  <span className="hidden md:inline">Buscar</span>
-                  <kbd className="hidden md:inline border border-border rounded px-1 py-0 text-[9px] uppercase ml-1">
-                    ⌘K
-                  </kbd>
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setPaletteOpen(true)}
-                  className="sm:hidden"
-                  aria-label="Buscar"
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
-                <Button size="sm" onClick={openNewEvent}>
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Novo evento</span>
-                </Button>
               </div>
             </div>
 
@@ -481,7 +498,7 @@ export function CalendarClient() {
               />
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-2 sm:px-6">
             {viewMode === "day" && (
               <DayView
                 list={filteredList}
@@ -589,7 +606,7 @@ export function CalendarClient() {
                           }}
                           title={isLocked ? "Sem acesso após junho/2026" : undefined}
                           className={cn(
-                            "h-20 sm:h-24 rounded-lg border text-left p-1.5 flex flex-col gap-1 transition-all",
+                            "h-14 xs:h-16 sm:h-20 md:h-24 rounded-md sm:rounded-lg border text-left p-1 sm:p-1.5 flex flex-col gap-0.5 sm:gap-1 transition-all overflow-hidden",
                             cell.inMonth
                               ? "bg-card hover:bg-secondary/50 border-border/60"
                               : "bg-secondary/20 text-muted-foreground/60 border-border/30",
@@ -602,36 +619,62 @@ export function CalendarClient() {
                         >
                           <span
                             className={cn(
-                              "text-xs font-medium",
+                              "text-[11px] sm:text-xs font-medium",
                               isToday && "text-accent",
                             )}
                           >
                             {cell.day}
                           </span>
                           {dayEvents && evCount > 0 && (
-                            <div className="flex flex-col gap-0.5 overflow-hidden">
-                              {dayEvents
-                                .toArray()
-                                .slice(0, 2)
-                                .map((ev) => (
-                                  <span
-                                    key={ev.getId()}
-                                    className={cn(
-                                      "text-[10px] px-1 py-0.5 rounded border truncate",
-                                      ev.getColor(),
-                                    )}
-                                    title={ev.toString()}
-                                  >
-                                    <span className="mr-1">{ev.getIcon()}</span>
-                                    {ev.getTitle()}
+                            <>
+                              {/* Mobile: 3 dots coloridos */}
+                              <div className="flex sm:hidden gap-0.5 flex-wrap mt-auto">
+                                {dayEvents
+                                  .toArray()
+                                  .slice(0, 3)
+                                  .map((ev) => (
+                                    <span
+                                      key={ev.getId()}
+                                      className={cn(
+                                        "w-1.5 h-1.5 rounded-full border",
+                                        ev.getColor(),
+                                      )}
+                                      title={ev.getTitle()}
+                                    />
+                                  ))}
+                                {evCount > 3 && (
+                                  <span className="text-[9px] text-muted-foreground leading-none">
+                                    +{evCount - 3}
                                   </span>
-                                ))}
-                              {evCount > 2 && (
-                                <span className="text-[10px] text-muted-foreground">
-                                  +{evCount - 2}
-                                </span>
-                              )}
-                            </div>
+                                )}
+                              </div>
+                              {/* Desktop: cartões com texto */}
+                              <div className="hidden sm:flex flex-col gap-0.5 overflow-hidden">
+                                {dayEvents
+                                  .toArray()
+                                  .slice(0, 2)
+                                  .map((ev) => (
+                                    <span
+                                      key={ev.getId()}
+                                      className={cn(
+                                        "text-[10px] px-1 py-0.5 rounded border truncate",
+                                        ev.getColor(),
+                                      )}
+                                      title={ev.toString()}
+                                    >
+                                      <span className="mr-1">
+                                        {ev.getIcon()}
+                                      </span>
+                                      {ev.getTitle()}
+                                    </span>
+                                  ))}
+                                {evCount > 2 && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    +{evCount - 2}
+                                  </span>
+                                )}
+                              </div>
+                            </>
                           )}
                         </button>
                       )

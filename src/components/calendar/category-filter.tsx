@@ -17,8 +17,8 @@ const ALL: { id: EventCategory; label: string; icon: string; ring: string }[] = 
 
 export function CategoryFilter({ active, onToggle, counts }: CategoryFilterProps) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">
+    <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5">
+      <span className="hidden xs:inline text-[10px] uppercase tracking-wider text-muted-foreground mr-1 shrink-0">
         Filtros
       </span>
       {ALL.map((cat) => {
@@ -30,18 +30,19 @@ export function CategoryFilter({ active, onToggle, counts }: CategoryFilterProps
             type="button"
             onClick={() => onToggle(cat.id)}
             className={cn(
-              "text-xs px-2.5 py-1 rounded-full border transition-all flex items-center gap-1.5",
+              "text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 rounded-full border transition-all flex items-center gap-1 sm:gap-1.5 shrink-0",
               isOn
                 ? `bg-secondary border-border ring-1 ${cat.ring}`
                 : "bg-transparent border-border/40 text-muted-foreground hover:border-border hover:text-foreground",
             )}
             title={isOn ? `Esconder ${cat.label}` : `Mostrar ${cat.label}`}
+            aria-label={cat.label}
           >
             <span>{cat.icon}</span>
-            <span>{cat.label}</span>
+            <span className="hidden xs:inline">{cat.label}</span>
             <span
               className={cn(
-                "tabular-nums text-[10px] px-1 rounded",
+                "tabular-nums text-[9px] sm:text-[10px] px-1 rounded",
                 isOn ? "bg-background/50" : "bg-secondary/50",
               )}
             >
